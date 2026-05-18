@@ -1,0 +1,22 @@
+# Android/Gradle build outputs
+.gradle/
+.kotlin/
+build/
+**/build/
+**/.cxx/
+
+# Local machine configuration
+local.properties
+
+# Generated build logs
+android/build_log.txt
+android/build_phase2_log.txt
+android/cmake_out.txt
+adb-*.log
+
+# Local device screenshots
+bs-*.png
+screen-*.png
+
+# Local signing material
+android/*.keystore

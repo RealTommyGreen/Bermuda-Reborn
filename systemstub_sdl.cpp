@@ -56,7 +56,7 @@ struct SystemStub_SDL : SystemStub {
 		_gameBuffer(0), _videoBuffer(0),
 		_iconData(0), _iconSize(0) {
 		_screenshot = 1;
-		if (1) {
+		if (0) {
 			_mixer = Mixer_SDL_create(this);
 		} else {
 			_mixer = Mixer_Software_create(this);
@@ -93,6 +93,10 @@ struct SystemStub_SDL : SystemStub {
 	void updateMousePosition(int x, int y);
 	void handleEvent(const SDL_Event &ev, bool &paused);
 	void setFullscreen(bool fullscreen);
+#if SDL_VERSION_ATLEAST(2, 0, 0)
+	void getAndroidOutputSize(int *w, int *h) const;
+	SDL_Rect getAndroidAspectRect(int srcW, int srcH) const;
+#endif
 };
 
 SystemStub *SystemStub_SDL_create() {
@@ -157,11 +161,15 @@ void SystemStub_SDL::init(const char *title, int w, int h, bool fullscreen, int 
 		}
 	}
 	_renderer = SDL_CreateRenderer(_window, -1, SDL_RENDERER_ACCELERATED);
+#ifdef __ANDROID__
+	SDL_RenderSetLogicalSize(_renderer, 0, 0);
+#else
 	if (_widescreen) {
 		SDL_RenderSetLogicalSize(_renderer, _widescreenW, _widescreenH);
 	} else {
 		SDL_RenderSetLogicalSize(_renderer, w, h);
 	}
+#endif
 
 	static const uint32_t pfmt = SDL_PIXELFORMAT_RGB888; //SDL_PIXELFORMAT_RGB565;
 	_fmt = SDL_AllocFormat(pfmt);
@@ -446,15 +454,55 @@ void SystemStub_SDL::clearWidescreen() {
 	}
 }
 
+#if SDL_VERSION_ATLEAST(2, 0, 0)
+void SystemStub_SDL::getAndroidOutputSize(int *w, int *h) const {
+	if (SDL_GetRendererOutputSize(_renderer, w, h) != 0 || *w <= 0 || *h <= 0) {
+		SDL_GetWindowSize(_window, w, h);
+	}
+}
+
+SDL_Rect SystemStub_SDL::getAndroidAspectRect(int srcW, int srcH) const {
+	int outputW = srcW;
+	int outputH = srcH;
+	getAndroidOutputSize(&outputW, &outputH);
+
+	const int scaledW = outputH * srcW / srcH;
+	SDL_Rect r;
+	if (scaledW <= outputW) {
+		r.w = scaledW;
+		r.h = outputH;
+		r.x = (outputW - r.w) / 2;
+		r.y = 0;
+	} else {
+		r.w = outputW;
+		r.h = outputW * srcH / srcW;
+		r.x = 0;
+		r.y = (outputH - r.h) / 2;
+	}
+	return r;
+}
+#endif
+
 void SystemStub_SDL::updateScreen() {
 #if SDL_VERSION_ATLEAST(2, 0, 0)
 	SDL_RenderClear(_renderer);
 	// background graphics (left/right borders)
 	if (_widescreen) {
+#ifdef __ANDROID__
+		int outputW = 0;
+		int outputH = 0;
+		getAndroidOutputSize(&outputW, &outputH);
+		SDL_Rect bg = { 0, 0, outputW, outputH };
+		SDL_RenderCopy(_renderer, _backgroundTexture, 0, &bg);
+#else
 		SDL_RenderCopy(_renderer, _backgroundTexture, 0, 0);
+#endif
 	}
 	// game graphics
 	SDL_UpdateTexture(_gameTexture, NULL, _gameBuffer, _screenW * sizeof(uint32_t));
+#ifdef __ANDROID__
+	SDL_Rect r = getAndroidAspectRect(_screenW, _screenH);
+#else
 	SDL_Rect r;
 	r.w = _screenW;
 	r.h = _screenH;
@@ -465,6 +513,7 @@ void SystemStub_SDL::updateScreen() {
 		r.x = 0;
 		r.y = 0;
 	}
+#endif
 	SDL_RenderCopy(_renderer, _gameTexture, NULL, &r);
 	// display
 	SDL_RenderPresent(_renderer);
@@ -497,7 +546,7 @@ void SystemStub_SDL::setYUV(bool flag, int w, int h) {
 #endif
 #endif
 		_videoW = w;
-		_videoH = w;
+		_videoH = h;
 	} else {
 #ifndef __EMSCRIPTEN__
 #if SDL_VERSION_ATLEAST(2, 0, 0)
@@ -540,10 +589,26 @@ void SystemStub_SDL::unlockYUV() {
 #ifndef __EMSCRIPTEN__
 #if SDL_VERSION_ATLEAST(2, 0, 0)
 	SDL_RenderClear(_renderer);
+	if (_widescreen && _backgroundTexture) {
+#ifdef __ANDROID__
+		int outputW = 0;
+		int outputH = 0;
+		getAndroidOutputSize(&outputW, &outputH);
+		SDL_Rect bg = { 0, 0, outputW, outputH };
+		SDL_RenderCopy(_renderer, _backgroundTexture, 0, &bg);
+#else
+		SDL_RenderCopy(_renderer, _backgroundTexture, 0, 0);
+#endif
+	}
 	if (_videoBuffer) {
 		SDL_UpdateTexture(_videoTexture, NULL, _videoBuffer, _videoW * sizeof(uint16_t));
 	}
+#ifdef __ANDROID__
+	SDL_Rect r = getAndroidAspectRect(_videoW, _videoH);
+	SDL_RenderCopy(_renderer, _videoTexture, NULL, &r);
+#else
 	SDL_RenderCopy(_renderer, _videoTexture, NULL, NULL);
+#endif
 	SDL_RenderPresent(_renderer);
 #else
 	if (_yuv) {
@@ -580,10 +645,16 @@ void SystemStub_SDL::processEvents() {
 }
 
 void SystemStub_SDL::updateMousePosition(int x, int y) {
+#if SDL_VERSION_ATLEAST(2, 0, 0) && defined(__ANDROID__)
+	SDL_Rect r = getAndroidAspectRect(_screenW, _screenH);
+	x = (x - r.x) * _screenW / r.w;
+	y = (y - r.y) * _screenH / r.h;
+#else
 	if (_widescreen) {
 		x -= (_widescreenW - _screenW) / 2;
 		y -= (_widescreenH - _screenH) / 2;
 	}
+#endif
 	_pi.mouseX = x;
 	_pi.mouseY = y;
 }

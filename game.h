@@ -204,6 +204,11 @@ enum {
 	kGameScreenWidth = 640,
 	kGameScreenHeight = 480,
 	kDemoSavSlot = -1,
+	kQuickSaveSlot = 1,
+	kMenuSaveSlotBase = 101,
+	kMenuSaveSlotCount = 10,
+	kSaveThumbnailWidth = 64,
+	kSaveThumbnailHeight = 48,
 	kOffsetBitmapInfo = 0,
 	kOffsetBitmapPalette = kOffsetBitmapInfo + 40,
 	kOffsetBitmapBits = kOffsetBitmapPalette + 256 * 4,
@@ -340,6 +345,16 @@ struct Game {
 	void initMenu(int num);
 	void finiMenu();
 	void handleMenu();
+	void handleSlotMenu(bool loadMode);
+	void drawSlotMenu(bool loadMode);
+	bool hasSaveStateSlot(int slot);
+	bool saveGameStateSlot(int slot);
+	bool loadGameStateSlot(int slot, bool switchScene);
+	void captureSaveThumbnail();
+	bool saveSlotThumbnail(int slot);
+	bool loadSlotThumbnail(int slot, uint8_t *dst, int pitch);
+	void drawFloatingStatus();
+	void setFloatingStatus(const char *message);
 
 	// opcodes.cpp
 	bool executeConditionOpcode(int num);
@@ -465,6 +480,12 @@ struct Game {
 	const char *_musicPath;
 	uint32_t _cheats;
 	int _stateSlot;
+	int _pendingLoadSlot;
+	int _menuSlotMode;
+	int _menuSlotSelection;
+	uint8_t _saveThumbnail[kSaveThumbnailWidth * kSaveThumbnailHeight];
+	int _floatingStatusTicks;
+	char _floatingStatusText[32];
 	int _mixerSoundId;
 	int _mixerMusicId;
 	int _menuObjectCount;

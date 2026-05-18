@@ -22,7 +22,13 @@ Game::Game(SystemStub *stub, const char *dataPath, const char *savePath, const c
 	: _fs(dataPath), _stub(stub), _dataPath(dataPath), _savePath(savePath), _musicPath(musicPath) {
 	_state = _nextState = -1;
 	_mixer = _stub->getMixer();
-	_stateSlot = 1;
+	_stateSlot = kQuickSaveSlot;
+	_pendingLoadSlot = kQuickSaveSlot;
+	_menuSlotMode = 0;
+	_menuSlotSelection = 0;
+	memset(_saveThumbnail, 0, sizeof(_saveThumbnail));
+	_floatingStatusTicks = 0;
+	_floatingStatusText[0] = 0;
 	_cheats = 0;
 	detectVersion();
 	detectTextCp949();
@@ -184,6 +190,7 @@ void Game::fini() {
 
 void Game::mainLoop() {
 	if (_nextState != _state) {
+		const int previousState = _state;
 		// fini
 		switch (_state) {
 		case kStateGame:
@@ -209,7 +216,12 @@ void Game::mainLoop() {
 			break;
 		case kStateMenu1:
 		case kStateMenu2:
+			if (previousState == kStateGame) {
+				captureSaveThumbnail();
+			}
 			initMenu(1 + _state - kStateMenu1);
+			_menuSlotMode = 0;
+			_menuSlotSelection = 0;
 			break;
 		}
 	}
@@ -242,14 +254,16 @@ void Game::mainLoop() {
 						loadKBR(_currentSceneSav);
 					}
 				} else {
+					const int slot = _pendingLoadSlot;
 					char filePath[MAXPATHLEN];
-					snprintf(filePath, sizeof(filePath), kGameStateFileNameFormat, _savePath, _stateSlot);
+					snprintf(filePath, sizeof(filePath), kGameStateFileNameFormat, _savePath, slot);
 					File f;
 					if (!f.open(filePath, "rb")) {
 						warning("Unable to load game state from file '%s'", filePath);
 					} else {
-						loadState(&f, _stateSlot, false);
+						loadState(&f, slot, false);
 					}
+					_pendingLoadSlot = kQuickSaveSlot;
 				}
 				playMusic(_musicName);
 				memset(_keysPressed, 0, sizeof(_keysPressed));
@@ -293,27 +307,33 @@ void Game::mainLoop() {
 		}
 		break;
 	case kStateMenu1:
-		handleMenu();
-		switch (_menuOption) {
-		case kMenuOptionNewGame:
-			restart();
-			_nextState = kStateGame;
-			break;
-		case kMenuOptionLoadGame:
-			_stub->_pi.load = true;
-			_nextState = kStateGame;
-			break;
-		case kMenuOptionSaveGame:
-			_stub->_pi.save = true;
-			_nextState = kStateGame;
-			break;
-		case kMenuOptionQuitGame:
-			_nextState = kStateMenu2;
-			break;
-		}
-		if (_stub->_pi.escape) {
-			_stub->_pi.escape = false;
-			_nextState = kStateGame;
+		if (_menuSlotMode != 0) {
+			handleSlotMenu(_menuSlotMode == 2);
+		} else {
+			handleMenu();
+			switch (_menuOption) {
+			case kMenuOptionNewGame:
+				restart();
+				_nextState = kStateGame;
+				break;
+			case kMenuOptionLoadGame:
+				_menuSlotMode = 2;
+				_menuSlotSelection = 0;
+				_menuOption = -1;
+				break;
+			case kMenuOptionSaveGame:
+				_menuSlotMode = 1;
+				_menuSlotSelection = 0;
+				_menuOption = -1;
+				break;
+			case kMenuOptionQuitGame:
+				_nextState = kStateMenu2;
+				break;
+			}
+			if (_stub->_pi.escape) {
+				_stub->_pi.escape = false;
+				_nextState = kStateGame;
+			}
 		}
 		break;
 	case kStateMenu2:
@@ -332,6 +352,7 @@ void Game::mainLoop() {
 		}
 		break;
 	}
+	drawFloatingStatus();
 	_stub->updateScreen();
 }
 
@@ -382,25 +403,14 @@ void Game::updateKeysPressedTable() {
 	}
 	if (_stub->_pi.load) {
 		_stub->_pi.load = false;
-		char filePath[MAXPATHLEN];
-		snprintf(filePath, sizeof(filePath), kGameStateFileNameFormat, _savePath, _stateSlot);
-		File f;
-		if (!f.open(filePath, "rb")) {
-			warning("Unable to load game state from file '%s'", filePath);
-		} else {
-			loadState(&f, _stateSlot, true);
-			_loadState = _switchScene; // gamestate will get loaded on scene switch
+		if (loadGameStateSlot(kQuickSaveSlot, true)) {
+			setFloatingStatus("QUICK LOAD");
 		}
 	}
 	if (_stub->_pi.save) {
 		_stub->_pi.save = false;
-		char filePath[MAXPATHLEN];
-		snprintf(filePath, sizeof(filePath), kGameStateFileNameFormat, _savePath, _stateSlot);
-		File f;
-		if (!f.open(filePath, "wb")) {
-			warning("Unable to save game state to file '%s'", filePath);
-		} else {
-			saveState(&f, _stateSlot);
+		if (saveGameStateSlot(kQuickSaveSlot)) {
+			setFloatingStatus("QUICK SAVE");
 		}
 	}
 	if (!_isDemo) {
@@ -415,6 +425,46 @@ void Game::updateKeysPressedTable() {
 			restart();
 		}
 	}
+}
+
+bool Game::hasSaveStateSlot(int slot) {
+	char filePath[MAXPATHLEN];
+	snprintf(filePath, sizeof(filePath), kGameStateFileNameFormat, _savePath, slot);
+	File f;
+	return f.open(filePath, "rb");
+}
+
+bool Game::saveGameStateSlot(int slot) {
+	char filePath[MAXPATHLEN];
+	snprintf(filePath, sizeof(filePath), kGameStateFileNameFormat, _savePath, slot);
+	File f;
+	if (!f.open(filePath, "wb")) {
+		warning("Unable to save game state to file '%s'", filePath);
+		return false;
+	}
+	saveState(&f, slot);
+	if (slot >= kMenuSaveSlotBase && slot < kMenuSaveSlotBase + kMenuSaveSlotCount) {
+		saveSlotThumbnail(slot);
+	}
+	debug(DBG_INFO, "Saved game state to slot %d", slot);
+	return true;
+}
+
+bool Game::loadGameStateSlot(int slot, bool switchScene) {
+	char filePath[MAXPATHLEN];
+	snprintf(filePath, sizeof(filePath), kGameStateFileNameFormat, _savePath, slot);
+	File f;
+	if (!f.open(filePath, "rb")) {
+		warning("Unable to load game state from file '%s'", filePath);
+		return false;
+	}
+	loadState(&f, slot, switchScene);
+	if (switchScene) {
+		_pendingLoadSlot = slot;
+		_loadState = _switchScene; // gamestate will get loaded on scene switch
+	}
+	debug(DBG_INFO, "Loaded game state from slot %d", slot);
+	return true;
 }
 
 void Game::clearSceneData(int anim) {

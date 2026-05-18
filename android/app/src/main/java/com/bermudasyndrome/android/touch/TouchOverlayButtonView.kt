@@ -366,16 +366,20 @@ class TouchOverlayButtonView(
     }
 
     private fun drawWeapon(canvas: Canvas, cx: Float, cy: Float, s: Float) {
-        canvas.save()
-        canvas.rotate(-14f, cx, cy)
-        val barrel = RectF(cx - s * 0.96f, cy - s * 0.28f, cx + s * 0.78f, cy - s * 0.04f)
-        canvas.drawRoundRect(barrel, s * 0.08f, s * 0.08f, iconPaint)
-        canvas.drawLine(cx - s * 0.96f, cy + s * 0.08f, cx + s * 0.64f, cy + s * 0.08f, iconPaint)
-        canvas.drawLine(cx - s * 0.18f, cy + s * 0.08f, cx - s * 0.34f, cy + s * 0.62f, iconPaint)
-        canvas.drawLine(cx - s * 0.34f, cy + s * 0.62f, cx - s * 0.68f, cy + s * 0.68f, iconPaint)
-        canvas.drawLine(cx + s * 0.58f, cy + s * 0.06f, cx + s * 0.92f, cy + s * 0.2f, iconPaint)
-        canvas.drawLine(cx - s * 0.86f, cy + s * 0.08f, cx - s * 1.12f, cy + s * 0.28f, iconPaint)
-        canvas.restore()
+        val body = Path().apply {
+            moveTo(cx - s * 0.95f, cy - s * 0.2f)
+            lineTo(cx + s * 0.55f, cy - s * 0.2f)
+            lineTo(cx + s * 0.78f, cy)
+            lineTo(cx + s * 0.2f, cy + s * 0.12f)
+            lineTo(cx - s * 0.06f, cy + s * 0.12f)
+            lineTo(cx - s * 0.28f, cy + s * 0.75f)
+            lineTo(cx - s * 0.62f, cy + s * 0.75f)
+            lineTo(cx - s * 0.5f, cy + s * 0.12f)
+            lineTo(cx - s * 0.95f, cy + s * 0.12f)
+            close()
+        }
+        canvas.drawPath(body, iconPaint)
+        canvas.drawLine(cx + s * 0.72f, cy, cx + s * 1.05f, cy, iconPaint)
     }
 
     private fun drawRun(canvas: Canvas, cx: Float, cy: Float, s: Float) {

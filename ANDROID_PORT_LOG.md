@@ -1055,3 +1055,30 @@ cd "D:\Coding\BS Android\android"
 - Release-APK: `D:\Coding\BS Android\android\app\build\outputs\apk\release\app-release.apk`.
 - APK-Zeitstempel nach Build: `2026-05-18 21:06:09`.
 - APK-Groesse: `151487373` Bytes.
+
+---
+
+## Codex-Fix: Waffen-Icon zurueckgestellt und Android-Hintergrund deaktiviert (2026-05-18)
+
+### Ziel
+- Der Waffen-Button soll wieder das vorherige kompakte Symbol verwenden.
+- Die ablenkenden Widescreen-Hintergruende sollen im Android-Spiel nicht mehr angezeigt werden.
+
+### Aenderung
+- Geaendert: `TouchOverlayButtonView.kt`, `systemstub_sdl.cpp`.
+- `Weapon` zeichnet wieder die vorherige kompakte Waffen-Silhouette.
+- Android rendert keine generierten Widescreen-Hintergrund-Layer mehr:
+  - `copyRectWidescreen()` und `clearWidescreen()` sind auf Android No-Ops.
+  - `updateScreen()` und `unlockYUV()` zeichnen auf Android keinen `_backgroundTexture`-Layer mehr.
+- Die 4:3-Spiel- und Video-Skalierung bleibt unveraendert; die freibleibenden Bereiche werden durch den Renderer-Clear schwarz.
+
+### Verifikation
+```powershell
+cd "D:\Coding\BS Android\android"
+.\gradlew.bat :app:assembleRelease
+```
+
+- `assembleRelease`: erfolgreich.
+- Release-APK: `D:\Coding\BS Android\android\app\build\outputs\apk\release\app-release.apk`.
+- APK-Zeitstempel nach Build: `2026-05-18 21:19:00`.
+- APK-Groesse: `151470989` Bytes.

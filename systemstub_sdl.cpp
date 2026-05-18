@@ -408,6 +408,9 @@ static void blur_v(int radius, const uint32_t *src, int srcPitch, int w, int h, 
 }
 
 void SystemStub_SDL::copyRectWidescreen(int w, int h, const uint8_t *buf, int bufPitch) {
+#ifdef __ANDROID__
+	return;
+#endif
 	if (_widescreen) {
 		void *ptr = 0;
 		int dstPitch = 0;
@@ -437,6 +440,9 @@ void SystemStub_SDL::copyRectWidescreen(int w, int h, const uint8_t *buf, int bu
 }
 
 void SystemStub_SDL::clearWidescreen() {
+#ifdef __ANDROID__
+	return;
+#endif
 	if (_widescreen) {
 		void *dst = 0;
 		int dstPitch = 0;
@@ -487,17 +493,11 @@ void SystemStub_SDL::updateScreen() {
 #if SDL_VERSION_ATLEAST(2, 0, 0)
 	SDL_RenderClear(_renderer);
 	// background graphics (left/right borders)
+#ifndef __ANDROID__
 	if (_widescreen) {
-#ifdef __ANDROID__
-		int outputW = 0;
-		int outputH = 0;
-		getAndroidOutputSize(&outputW, &outputH);
-		SDL_Rect bg = { 0, 0, outputW, outputH };
-		SDL_RenderCopy(_renderer, _backgroundTexture, 0, &bg);
-#else
 		SDL_RenderCopy(_renderer, _backgroundTexture, 0, 0);
-#endif
 	}
+#endif
 	// game graphics
 	SDL_UpdateTexture(_gameTexture, NULL, _gameBuffer, _screenW * sizeof(uint32_t));
 #ifdef __ANDROID__
@@ -589,17 +589,11 @@ void SystemStub_SDL::unlockYUV() {
 #ifndef __EMSCRIPTEN__
 #if SDL_VERSION_ATLEAST(2, 0, 0)
 	SDL_RenderClear(_renderer);
+#ifndef __ANDROID__
 	if (_widescreen && _backgroundTexture) {
-#ifdef __ANDROID__
-		int outputW = 0;
-		int outputH = 0;
-		getAndroidOutputSize(&outputW, &outputH);
-		SDL_Rect bg = { 0, 0, outputW, outputH };
-		SDL_RenderCopy(_renderer, _backgroundTexture, 0, &bg);
-#else
 		SDL_RenderCopy(_renderer, _backgroundTexture, 0, 0);
-#endif
 	}
+#endif
 	if (_videoBuffer) {
 		SDL_UpdateTexture(_videoTexture, NULL, _videoBuffer, _videoW * sizeof(uint16_t));
 	}

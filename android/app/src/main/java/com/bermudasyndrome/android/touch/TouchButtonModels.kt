@@ -3,7 +3,7 @@ package com.bermudasyndrome.android.touch
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-const val TOUCH_OVERLAY_CONFIG_VERSION = 3
+const val TOUCH_OVERLAY_CONFIG_VERSION = 4
 
 @Serializable
 data class TouchOverlayConfig(
@@ -49,7 +49,7 @@ const val BUTTON_SHAPE_RECTANGLE = "rectangle"
 fun defaultButtons(): List<TouchButtonConfig> = listOf(
     // D-Pad (bottom-left)
     TouchButtonConfig(id = "dpad", label = "", icon = "dpad_map", shape = BUTTON_SHAPE_SQUARE,
-        x = 0.14f, y = 0.68f, size = 0.22f, alpha = 0.40f, visible = true,
+        x = 0.14f, y = 0.68f, size = 0.22f, alpha = 0.40f, visible = true, dpadDoubleTapRun = true,
         actions = listOf(TouchButtonAction(type = "dpad", mode = "hold"))),
     // Action buttons (right side, top to bottom)
     TouchButtonConfig(id = "btn_jump", label = "Jump", icon = "jump", shape = BUTTON_SHAPE_CIRCLE,

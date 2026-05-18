@@ -27,6 +27,7 @@ Game::Game(SystemStub *stub, const char *dataPath, const char *savePath, const c
 	_menuSlotMode = 0;
 	_menuSlotSelection = 0;
 	memset(_saveThumbnail, 0, sizeof(_saveThumbnail));
+	memset(_saveThumbnailPalette, 0, sizeof(_saveThumbnailPalette));
 	_floatingStatusTicks = 0;
 	_floatingStatusText[0] = 0;
 	_cheats = 0;

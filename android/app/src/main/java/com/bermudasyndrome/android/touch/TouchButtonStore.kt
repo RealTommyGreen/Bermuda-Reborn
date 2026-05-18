@@ -81,7 +81,8 @@ class TouchButtonStore(private val filesDir: File) {
             schemaVersion = TOUCH_OVERLAY_CONFIG_VERSION,
             layoutLocked = true,
             buttons = updatedButtons.map { button ->
-                if (button.actions.any { it.type == "dpad" }) button else button.copy(dpadDoubleTapRun = false)
+                if (button.actions.any { it.type == "dpad" }) button.copy(dpadDoubleTapRun = true)
+                else button.copy(dpadDoubleTapRun = false)
             }
         )
     }

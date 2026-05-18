@@ -319,7 +319,8 @@ class TouchOverlayController(
                 val preserved = if (captured != null) updated.copy(x = captured.first, y = captured.second) else updated
                 onButtonEditSaved(preserved)
             },
-            onDelete = { onButtonDeleted(it) })
+            onDelete = { onButtonDeleted(it) },
+            showDpadSettings = btnConfig.actions.any { it.type == "dpad" })
         dialog.show()
     }
 

@@ -1014,3 +1014,44 @@ cd "D:\Coding\BS Android\android"
 - Release-APK: `D:\Coding\BS Android\android\app\build\outputs\apk\release\app-release.apk`.
 - APK-Zeitstempel nach Build: `2026-05-18 20:43:49`.
 - APK-Groesse: `151470989` Bytes.
+
+---
+
+## Codex-Fix: Touch-Icon-Feinschliff, D-Pad-Run-Default, erkennbare Thumbnails (2026-05-18)
+
+### Ziel
+- Waffensymbol soll wie eine Schrotflinte wirken, nicht wie eine MP.
+- Enter/Use soll als Handsymbol dargestellt werden.
+- Rennen-Symbol soll ueberarbeitet werden.
+- D-Pad-Doppeltap-Run soll nur in den D-Pad-Einstellungen erscheinen, nicht bei anderen Buttons und nicht beim Neu-Erstellen.
+- D-Pad-Doppeltap-Run soll standardmaessig aktiv sein.
+- Savegame-Thumbnails im Save-/Load-Menue sollen erkennbar sein.
+
+### Aenderung
+- Geaendert: `TouchButtonModels.kt`, `TouchButtonStore.kt`, `TouchOverlayButtonView.kt`, `TouchOverlayController.kt`, `TouchOverlayEditDialog.kt`.
+- Geaendert: `game.cpp`, `game.h`, `menu.cpp`.
+- Touch-Icons:
+  - `Weapon` zeichnet jetzt eine lange Schrotflinten-Silhouette.
+  - `Use` zeichnet eine Hand.
+  - `Run` zeichnet eine Laufpose mit Richtungspfeil.
+- D-Pad-Run-Option:
+  - Config-Schema auf Version 4 erhoeht.
+  - Default-D-Pad hat `dpad_double_tap_run = true`.
+  - Migration setzt bestehende D-Pads ebenfalls auf aktiv.
+  - Die Checkbox erscheint nur beim Bearbeiten eines vorhandenen D-Pad-Buttons.
+  - Beim Plus-/Neuer-Button-Dialog und bei Nicht-D-Pad-Buttons wird die Option nicht angezeigt.
+- Thumbnails:
+  - Thumbnail-Dateien speichern jetzt Magic, Originalpalette und 64x48-Pixelindizes.
+  - Beim Anzeigen wird aus der gespeicherten Spielpalette auf die aktuelle Menuepalette quantisiert.
+  - Alte Thumbnail-Dateien ohne Palette bleiben lesbar, koennen aber erst nach erneutem Speichern korrekt ersetzt werden.
+
+### Verifikation
+```powershell
+cd "D:\Coding\BS Android\android"
+.\gradlew.bat :app:assembleRelease
+```
+
+- `assembleRelease`: erfolgreich.
+- Release-APK: `D:\Coding\BS Android\android\app\build\outputs\apk\release\app-release.apk`.
+- APK-Zeitstempel nach Build: `2026-05-18 21:06:09`.
+- APK-Groesse: `151487373` Bytes.

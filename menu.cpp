@@ -5,6 +5,7 @@
 
 static const char *kSaveThumbnailFileNameFormat = "%s/bermuda.%03d.thumb";
 static const int kSaveThumbnailPathSize = 1024;
+static const uint32_t kSaveThumbnailMagic = 0x54485342; // BSHT
 
 static uint8_t findBestMatchingMenuColor(const uint8_t *src, int color) {
 	uint8_t bestColor = 0;
@@ -296,6 +297,7 @@ void Game::drawSlotMenu(bool loadMode) {
 }
 
 void Game::captureSaveThumbnail() {
+	memcpy(_saveThumbnailPalette, _bitmapBuffer0 + kOffsetBitmapPalette, sizeof(_saveThumbnailPalette));
 	for (int y = 0; y < kSaveThumbnailHeight; ++y) {
 		const int srcY = y * (kGameScreenHeight - 1) / (kSaveThumbnailHeight - 1);
 		const uint8_t *src = _bitmapBuffer1.bits + srcY * _bitmapBuffer1.pitch;
@@ -315,6 +317,8 @@ bool Game::saveSlotThumbnail(int slot) {
 		warning("Unable to save game state thumbnail to file '%s'", filePath);
 		return false;
 	}
+	f.writeUint32LE(kSaveThumbnailMagic);
+	f.write(_saveThumbnailPalette, sizeof(_saveThumbnailPalette));
 	f.write(_saveThumbnail, sizeof(_saveThumbnail));
 	return !f.ioErr();
 }
@@ -326,12 +330,28 @@ bool Game::loadSlotThumbnail(int slot, uint8_t *dst, int pitch) {
 	if (!f.open(filePath, "rb")) {
 		return false;
 	}
+	uint8_t palette[256 * 4];
 	uint8_t row[kSaveThumbnailWidth];
+	if (f.size() == 4 + sizeof(palette) + kSaveThumbnailWidth * kSaveThumbnailHeight) {
+		if (f.readUint32LE() != kSaveThumbnailMagic) {
+			return false;
+		}
+		if (f.read(palette, sizeof(palette)) != sizeof(palette)) {
+			return false;
+		}
+	} else {
+		memset(palette, 0, sizeof(palette));
+		memcpy(palette, _bitmapBuffer0 + kOffsetBitmapPalette, sizeof(palette));
+	}
 	for (int y = 0; y < kSaveThumbnailHeight; ++y) {
 		if (f.read(row, sizeof(row)) != sizeof(row)) {
 			return false;
 		}
-		memcpy(dst + y * pitch, row, sizeof(row));
+		for (int x = 0; x < kSaveThumbnailWidth; ++x) {
+			const uint8_t *p = palette + row[x] * 4;
+			const int color = p[2] | (p[1] << 8) | (p[0] << 16);
+			dst[y * pitch + x] = findBestMatchingMenuColor(_bitmapBuffer0 + kOffsetBitmapPalette, color);
+		}
 	}
 	return true;
 }

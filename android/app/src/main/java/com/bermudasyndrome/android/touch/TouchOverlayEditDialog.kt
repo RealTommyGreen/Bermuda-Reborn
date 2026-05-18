@@ -7,7 +7,6 @@ import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.CheckBox
 import android.widget.LinearLayout
@@ -20,7 +19,8 @@ class TouchOverlayEditDialog(
     private val context: Context,
     private val buttonConfig: TouchButtonConfig,
     private val onSave: (TouchButtonConfig) -> Unit,
-    private val onDelete: (String) -> Unit
+    private val onDelete: (String) -> Unit,
+    private val showDpadSettings: Boolean = false
 ) {
     private val presetOptions = TOUCH_BUTTON_PRESETS
     private val presetEntries = buildPresetEntries(presetOptions)
@@ -55,14 +55,8 @@ class TouchOverlayEditDialog(
             setTextColor(TEXT)
             buttonTintList = tint(ACCENT)
             isChecked = buttonConfig.dpadDoubleTapRun
-            isEnabled = isDpadPreset(presetSpinner.selectedItemPosition)
         }
-        presetSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                dpadRunCheckBox.isEnabled = isDpadPreset(position)
-            }
-            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
-        }
+        val dpadSettingsVisible = showDpadSettings && buttonConfig.actions.any { it.type == "dpad" }
 
         val sizeLabel = valueText()
         val sizeSeekBar = SeekBar(context).apply {
@@ -83,7 +77,9 @@ class TouchOverlayEditDialog(
         container.addView(labeledField("Size", sliderRow(sizeSeekBar, sizeLabel)))
         container.addView(labeledField("Shape", shapeSpinner))
         container.addView(labeledField("Opacity", sliderRow(alphaSeekBar, alphaLabel)))
-        container.addView(labeledField("D-Pad", dpadRunCheckBox))
+        if (dpadSettingsVisible) {
+            container.addView(labeledField("D-Pad", dpadRunCheckBox))
+        }
 
         sizeLabel.text = sizeFormat(sizeValues[sizeSeekBar.progress])
         alphaLabel.text = alphaFormat(alphaValues[alphaSeekBar.progress])
@@ -98,7 +94,7 @@ class TouchOverlayEditDialog(
                     shape = shapes[shapeSpinner.selectedItemPosition.coerceIn(0, shapes.size - 1)].value ?: BUTTON_SHAPE_CIRCLE,
                     size = sizeValues[sizeSeekBar.progress],
                     alpha = alphaValues[alphaSeekBar.progress],
-                    dpadDoubleTapRun = preset.action.type == "dpad" && dpadRunCheckBox.isChecked
+                    dpadDoubleTapRun = dpadSettingsVisible && preset.action.type == "dpad" && dpadRunCheckBox.isChecked
                 )
                 onSave(updated)
             }

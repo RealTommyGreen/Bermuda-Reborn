@@ -484,6 +484,7 @@ struct Game {
 	int _menuSlotMode;
 	int _menuSlotSelection;
 	uint8_t _saveThumbnail[kSaveThumbnailWidth * kSaveThumbnailHeight];
+	uint8_t _saveThumbnailPalette[256 * 4];
 	int _floatingStatusTicks;
 	char _floatingStatusText[32];
 	int _mixerSoundId;

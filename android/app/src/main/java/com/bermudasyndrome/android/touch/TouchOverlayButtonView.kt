@@ -357,35 +357,34 @@ class TouchOverlayButtonView(
     }
 
     private fun drawUse(canvas: Canvas, cx: Float, cy: Float, s: Float) {
-        val box = RectF(cx - s * 0.85f, cy - s * 0.58f, cx + s * 0.72f, cy + s * 0.58f)
-        canvas.drawRoundRect(box, s * 0.12f, s * 0.12f, iconPaint)
-        drawArrow(canvas, cx + s * 0.1f, cy, cx + s * 1.0f, cy)
+        canvas.drawLine(cx - s * 0.45f, cy + s * 0.72f, cx - s * 0.45f, cy - s * 0.28f, iconPaint)
+        canvas.drawLine(cx - s * 0.15f, cy + s * 0.68f, cx - s * 0.15f, cy - s * 0.72f, iconPaint)
+        canvas.drawLine(cx + s * 0.15f, cy + s * 0.66f, cx + s * 0.15f, cy - s * 0.58f, iconPaint)
+        canvas.drawLine(cx + s * 0.45f, cy + s * 0.54f, cx + s * 0.45f, cy - s * 0.24f, iconPaint)
+        canvas.drawArc(RectF(cx - s * 0.58f, cy + s * 0.18f, cx + s * 0.62f, cy + s * 1.12f), 195f, 150f, false, iconPaint)
+        canvas.drawLine(cx - s * 0.75f, cy + s * 0.18f, cx - s * 0.35f, cy + s * 0.6f, iconPaint)
     }
 
     private fun drawWeapon(canvas: Canvas, cx: Float, cy: Float, s: Float) {
-        val body = Path().apply {
-            moveTo(cx - s * 0.95f, cy - s * 0.2f)
-            lineTo(cx + s * 0.55f, cy - s * 0.2f)
-            lineTo(cx + s * 0.78f, cy)
-            lineTo(cx + s * 0.2f, cy + s * 0.12f)
-            lineTo(cx - s * 0.06f, cy + s * 0.12f)
-            lineTo(cx - s * 0.28f, cy + s * 0.75f)
-            lineTo(cx - s * 0.62f, cy + s * 0.75f)
-            lineTo(cx - s * 0.5f, cy + s * 0.12f)
-            lineTo(cx - s * 0.95f, cy + s * 0.12f)
-            close()
-        }
-        canvas.drawPath(body, iconPaint)
-        canvas.drawLine(cx + s * 0.72f, cy, cx + s * 1.05f, cy, iconPaint)
+        canvas.save()
+        canvas.rotate(-14f, cx, cy)
+        val barrel = RectF(cx - s * 0.96f, cy - s * 0.28f, cx + s * 0.78f, cy - s * 0.04f)
+        canvas.drawRoundRect(barrel, s * 0.08f, s * 0.08f, iconPaint)
+        canvas.drawLine(cx - s * 0.96f, cy + s * 0.08f, cx + s * 0.64f, cy + s * 0.08f, iconPaint)
+        canvas.drawLine(cx - s * 0.18f, cy + s * 0.08f, cx - s * 0.34f, cy + s * 0.62f, iconPaint)
+        canvas.drawLine(cx - s * 0.34f, cy + s * 0.62f, cx - s * 0.68f, cy + s * 0.68f, iconPaint)
+        canvas.drawLine(cx + s * 0.58f, cy + s * 0.06f, cx + s * 0.92f, cy + s * 0.2f, iconPaint)
+        canvas.drawLine(cx - s * 0.86f, cy + s * 0.08f, cx - s * 1.12f, cy + s * 0.28f, iconPaint)
+        canvas.restore()
     }
 
     private fun drawRun(canvas: Canvas, cx: Float, cy: Float, s: Float) {
-        canvas.drawCircle(cx - s * 0.18f, cy - s * 0.88f, s * 0.18f, iconFillPaint)
-        canvas.drawLine(cx - s * 0.14f, cy - s * 0.62f, cx + s * 0.18f, cy - s * 0.1f, iconPaint)
-        canvas.drawLine(cx + s * 0.1f, cy - s * 0.34f, cx + s * 0.72f, cy - s * 0.48f, iconPaint)
-        canvas.drawLine(cx + s * 0.18f, cy - s * 0.1f, cx - s * 0.2f, cy + s * 0.72f, iconPaint)
-        canvas.drawLine(cx + s * 0.18f, cy - s * 0.1f, cx + s * 0.82f, cy + s * 0.62f, iconPaint)
-        canvas.drawLine(cx - s * 1.05f, cy + s * 0.9f, cx + s * 1.05f, cy + s * 0.9f, iconPaint)
+        drawArrow(canvas, cx - s * 0.82f, cy + s * 0.4f, cx + s * 0.82f, cy + s * 0.4f)
+        canvas.drawCircle(cx - s * 0.18f, cy - s * 0.78f, s * 0.16f, iconFillPaint)
+        canvas.drawLine(cx - s * 0.14f, cy - s * 0.52f, cx + s * 0.12f, cy - s * 0.08f, iconPaint)
+        canvas.drawLine(cx + s * 0.02f, cy - s * 0.34f, cx + s * 0.54f, cy - s * 0.46f, iconPaint)
+        canvas.drawLine(cx + s * 0.12f, cy - s * 0.08f, cx - s * 0.18f, cy + s * 0.58f, iconPaint)
+        canvas.drawLine(cx + s * 0.12f, cy - s * 0.08f, cx + s * 0.62f, cy + s * 0.48f, iconPaint)
     }
 
     private fun drawInventory(canvas: Canvas, cx: Float, cy: Float, s: Float) {

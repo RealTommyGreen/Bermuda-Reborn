@@ -1082,3 +1082,9 @@ cd "D:\Coding\BS Android\android"
 - Release-APK: `D:\Coding\BS Android\android\app\build\outputs\apk\release\app-release.apk`.
 - APK-Zeitstempel nach Build: `2026-05-18 21:19:00`.
 - APK-Groesse: `151470989` Bytes.
+
+### Status
+- Vom Nutzer als aktueller funktionierender Stand bestaetigt.
+- APK wurde per FreeClaude auf Google Drive hochgeladen.
+- Drive-Datei-ID: `1Fb3ENF254D_O5Y4XNO39DT_bacuz_5ul`.
+- Drive-Link: `https://drive.google.com/file/d/1Fb3ENF254D_O5Y4XNO39DT_bacuz_5ul/view?usp=drivesdk`.

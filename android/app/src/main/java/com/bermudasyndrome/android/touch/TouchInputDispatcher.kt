@@ -69,6 +69,22 @@ class TouchInputDispatcher {
         }
     }
 
+    fun performKeyName(keyName: String, pressed: Boolean) {
+        val keyCode = keyNameToCode(keyName) ?: run {
+            Log.w(TAG, "Unknown key name: $keyName")
+            return
+        }
+        if (pressed) {
+            if (!heldKeyCodes.contains(keyCode)) {
+                SDLActivity.onNativeKeyDown(keyCode)
+                heldKeyCodes.add(keyCode)
+            }
+        } else if (heldKeyCodes.contains(keyCode)) {
+            SDLActivity.onNativeKeyUp(keyCode)
+            heldKeyCodes.remove(keyCode)
+        }
+    }
+
     private fun dispatchMouseAction(action: TouchButtonAction, pressed: Boolean) {
         val mouseButton = toMouseButton(action.button)
         val actionCode = if (pressed) ACTION_DOWN else ACTION_UP

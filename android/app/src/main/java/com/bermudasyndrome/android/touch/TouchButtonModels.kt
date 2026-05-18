@@ -3,7 +3,7 @@ package com.bermudasyndrome.android.touch
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-const val TOUCH_OVERLAY_CONFIG_VERSION = 2
+const val TOUCH_OVERLAY_CONFIG_VERSION = 3
 
 @Serializable
 data class TouchOverlayConfig(
@@ -24,6 +24,7 @@ data class TouchButtonConfig(
     val size: Float,
     val alpha: Float = 0.45f,
     val visible: Boolean = true,
+    @SerialName("dpad_double_tap_run") val dpadDoubleTapRun: Boolean = false,
     val actions: List<TouchButtonAction> = emptyList()
 )
 

@@ -9,6 +9,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
+import android.widget.CheckBox
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
@@ -48,6 +49,20 @@ class TouchOverlayEditDialog(
         val presetSpinner = groupedPresetSpinner(
             presetEntries.indexOfFirst { it.preset?.id == selectedPreset.id }.takeIf { it >= 0 } ?: 1)
         val shapeSpinner = spinner(shapes.map { it.label }, shapes.indexOfFirst { it.value == buttonConfig.shape }.takeIf { it >= 0 } ?: 0)
+        val dpadRunCheckBox = CheckBox(context).apply {
+            text = "Double tap left/right to run"
+            textSize = 14f
+            setTextColor(TEXT)
+            buttonTintList = tint(ACCENT)
+            isChecked = buttonConfig.dpadDoubleTapRun
+            isEnabled = isDpadPreset(presetSpinner.selectedItemPosition)
+        }
+        presetSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                dpadRunCheckBox.isEnabled = isDpadPreset(position)
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
 
         val sizeLabel = valueText()
         val sizeSeekBar = SeekBar(context).apply {
@@ -68,6 +83,7 @@ class TouchOverlayEditDialog(
         container.addView(labeledField("Size", sliderRow(sizeSeekBar, sizeLabel)))
         container.addView(labeledField("Shape", shapeSpinner))
         container.addView(labeledField("Opacity", sliderRow(alphaSeekBar, alphaLabel)))
+        container.addView(labeledField("D-Pad", dpadRunCheckBox))
 
         sizeLabel.text = sizeFormat(sizeValues[sizeSeekBar.progress])
         alphaLabel.text = alphaFormat(alphaValues[alphaSeekBar.progress])
@@ -80,7 +96,9 @@ class TouchOverlayEditDialog(
                 val preset = presetEntries[presetSpinner.selectedItemPosition.coerceIn(0, presetEntries.size - 1)].preset ?: selectedPreset
                 val updated = preset.applyTo(buttonConfig).copy(
                     shape = shapes[shapeSpinner.selectedItemPosition.coerceIn(0, shapes.size - 1)].value ?: BUTTON_SHAPE_CIRCLE,
-                    size = sizeValues[sizeSeekBar.progress], alpha = alphaValues[alphaSeekBar.progress]
+                    size = sizeValues[sizeSeekBar.progress],
+                    alpha = alphaValues[alphaSeekBar.progress],
+                    dpadDoubleTapRun = preset.action.type == "dpad" && dpadRunCheckBox.isChecked
                 )
                 onSave(updated)
             }
@@ -187,6 +205,9 @@ class TouchOverlayEditDialog(
         }
         return result
     }
+
+    private fun isDpadPreset(position: Int): Boolean =
+        presetEntries.getOrNull(position)?.preset?.action?.type == "dpad"
 
     companion object {
         private const val TEXT = 0xFFFFFFFF.toInt()

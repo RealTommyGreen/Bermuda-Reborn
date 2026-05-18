@@ -57,6 +57,9 @@ class TouchOverlayButtonView(
     private var isHoldMode: Boolean = false
     private var isDpad: Boolean = false
     private var currentDpadDirection: String? = null
+    private var lastHorizontalDpadTapDirection: String? = null
+    private var lastHorizontalDpadTapTime = 0L
+    private var dpadRunActive = false
     private var snapGridSizePx: Int = 0
 
     init { updateHoldMode() }
@@ -213,10 +216,19 @@ class TouchOverlayButtonView(
 
     private fun updateDpadDirection(x: Float, y: Float) {
         val direction = dpadDirection(x, y) ?: return
-        if (direction != currentDpadDirection) { dispatcher.performDpadDirection(direction); currentDpadDirection = direction }
+        if (direction != currentDpadDirection) {
+            releaseDpadRun()
+            maybeActivateDpadRun(direction)
+            dispatcher.performDpadDirection(direction)
+            currentDpadDirection = direction
+        }
     }
 
-    private fun releaseDpadDirection() { dispatcher.performDpadDirection(null); currentDpadDirection = null }
+    private fun releaseDpadDirection() {
+        releaseDpadRun()
+        dispatcher.performDpadDirection(null)
+        currentDpadDirection = null
+    }
 
     private fun dpadDirection(x: Float, y: Float): String? {
         val cx = width / 2f; val cy = height / 2f
@@ -226,6 +238,25 @@ class TouchOverlayButtonView(
         return if (kotlin.math.abs(dx) > kotlin.math.abs(dy))
             (if (dx > 0) "RIGHT" else "LEFT")
         else (if (dy > 0) "DOWN" else "UP")
+    }
+
+    private fun maybeActivateDpadRun(direction: String) {
+        if (!buttonConfig.dpadDoubleTapRun || (direction != "LEFT" && direction != "RIGHT")) return
+
+        val now = System.currentTimeMillis()
+        if (lastHorizontalDpadTapDirection == direction && now - lastHorizontalDpadTapTime <= DPAD_DOUBLE_TAP_RUN_MS) {
+            dispatcher.performKeyName("SHIFT", true)
+            dpadRunActive = true
+        }
+        lastHorizontalDpadTapDirection = direction
+        lastHorizontalDpadTapTime = now
+    }
+
+    private fun releaseDpadRun() {
+        if (dpadRunActive) {
+            dispatcher.performKeyName("SHIFT", false)
+            dpadRunActive = false
+        }
     }
 
     private fun moveWithinParent(requestedLeft: Int, requestedTop: Int) {
@@ -438,6 +469,7 @@ class TouchOverlayButtonView(
     companion object {
         private const val LONG_PRESS_MS = 400L
         private const val TAP_RELEASE_DELAY_MS = 120L
+        private const val DPAD_DOUBLE_TAP_RUN_MS = 280L
         private const val TOUCH_SLOP = 16.0
     }
 }

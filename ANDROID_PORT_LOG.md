@@ -983,3 +983,34 @@ cd "D:\Coding\BS Android\android"
 - Release-APK: `D:\Coding\BS Android\android\app\build\outputs\apk\release\app-release.apk`.
 - APK-Zeitstempel nach Build: `2026-05-18 20:40:06`.
 - APK-Groesse: `151470989` Bytes.
+
+---
+
+## Codex-Fix: D-Pad-Doppeltap-Rennen im Button-Editor (2026-05-18)
+
+### Ziel
+- Im Button-Editor soll fuer das D-Pad eine aktivierbare Option verfuegbar sein:
+  - schneller Doppeltap nach links oder rechts laesst den Charakter rennen.
+
+### Aenderung
+- Geaendert: `TouchButtonModels.kt`, `TouchButtonStore.kt`, `TouchInputDispatcher.kt`, `TouchOverlayButtonView.kt`, `TouchOverlayEditDialog.kt`.
+- Config-Schema auf Version 3 erhoeht.
+- `TouchButtonConfig` enthaelt neues Feld `dpad_double_tap_run`.
+- Button-Editor zeigt beim D-Pad die Checkbox `Double tap left/right to run`.
+- Die Option ist nur fuer D-Pad-Presets aktivierbar; fuer andere Buttons wird sie beim Speichern deaktiviert.
+- Bestehende Configs werden migriert, ohne Doppeltap-Rennen automatisch einzuschalten.
+- Laufverhalten:
+  - Zweiter schneller Tap auf dieselbe horizontale D-Pad-Richtung innerhalb von `280 ms` aktiviert zusaetzlich `SHIFT`.
+  - `SHIFT` wird wieder losgelassen, wenn die D-Pad-Richtung losgelassen oder gewechselt wird.
+  - Vertikale D-Pad-Richtungen bleiben unveraendert.
+
+### Verifikation
+```powershell
+cd "D:\Coding\BS Android\android"
+.\gradlew.bat :app:assembleRelease
+```
+
+- `assembleRelease`: erfolgreich.
+- Release-APK: `D:\Coding\BS Android\android\app\build\outputs\apk\release\app-release.apk`.
+- APK-Zeitstempel nach Build: `2026-05-18 20:43:49`.
+- APK-Groesse: `151470989` Bytes.

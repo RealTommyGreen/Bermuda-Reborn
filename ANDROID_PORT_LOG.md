@@ -939,3 +939,47 @@ cd "D:\Coding\BS Android\android"
 - Upload-Groesse laut Drive: `151470989` Bytes.
 - Nutzerbestaetigung nach Geraetetest: Save-/Restore-Slots, getrennte QuickSave-/QuickLoad-Funktion, Thumbnails und Floating-Meldungen funktionieren wie gewuenscht.
 - Status: umgesetzt und funktionell.
+
+---
+
+## Codex-Fix: Separater Springen-Button und sprechende Touch-Symbole (2026-05-18)
+
+### Ziel
+- Im Button-Editor soll ein einzelner Pfeil-nach-oben-/Springen-Button verfuegbar sein, zusaetzlich zum D-Pad.
+- Die Touch-Buttons sollen sprechende Symbole statt knapper Textkuerzel bekommen.
+
+### Aenderung
+- Geaendert: `TouchButtonModels.kt`, `TouchButtonPresets.kt`, `TouchButtonStore.kt`, `TouchOverlayButtonView.kt`.
+- Default-Overlay enthaelt jetzt `btn_jump`:
+  - Label: `Jump`
+  - Icon: `jump`
+  - Aktion: `UP` als Hold-Key.
+- Button-Editor-Presets enthalten jetzt `Jump` in der Kategorie `Movement`.
+- Config-Schema auf Version 2 erhoeht.
+- Bestehende `touch_buttons.json`-Configs werden migriert:
+  - bekannte Standardbutton-Icons werden auf neue sprechende Icon-Namen aktualisiert.
+  - fehlender `btn_jump` wird ergaenzt.
+  - vorhandene Positionen/Groessen bleiben erhalten.
+- Neue gezeichnete Icons fuer:
+  - Jump/Pfeil-hoch
+  - Use/Enter
+  - Weapon
+  - Run
+  - Inventory
+  - Status
+  - Menu
+  - Save
+  - Load
+  - Cancel
+- Alte Icon-Namen wie `enter`, `space`, `tab`, `info`, `run_toggle`, `escape` bleiben als Fallback gemappt.
+
+### Verifikation
+```powershell
+cd "D:\Coding\BS Android\android"
+.\gradlew.bat :app:assembleRelease
+```
+
+- `assembleRelease`: erfolgreich.
+- Release-APK: `D:\Coding\BS Android\android\app\build\outputs\apk\release\app-release.apk`.
+- APK-Zeitstempel nach Build: `2026-05-18 20:40:06`.
+- APK-Groesse: `151470989` Bytes.

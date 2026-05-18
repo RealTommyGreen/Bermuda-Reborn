@@ -26,8 +26,8 @@ class TouchButtonStore(private val filesDir: File) {
             val raw = configFile.readText()
             val config = jsonFormat.decodeFromString<TouchOverlayConfig>(raw)
             if (config.schemaVersion != TOUCH_OVERLAY_CONFIG_VERSION) {
-                Log.i(TAG, "Config version mismatch, normalizing")
-                val normalized = config.copy(schemaVersion = TOUCH_OVERLAY_CONFIG_VERSION, layoutLocked = true)
+                Log.i(TAG, "Config version mismatch, migrating")
+                val normalized = migrateConfig(config)
                 save(normalized)
                 normalized
             } else {
@@ -58,6 +58,31 @@ class TouchButtonStore(private val filesDir: File) {
         schemaVersion = TOUCH_OVERLAY_CONFIG_VERSION,
         buttons = defaultButtons()
     )
+
+    private fun migrateConfig(config: TouchOverlayConfig): TouchOverlayConfig {
+        val updatedButtons = config.buttons.map { button ->
+            when (button.id) {
+                "btn_use" -> button.copy(label = "Use", icon = "use")
+                "btn_weapon" -> button.copy(label = "Weapon", icon = "weapon")
+                "btn_run" -> button.copy(label = "Run", icon = "run")
+                "btn_inv" -> button.copy(label = "Inventory", icon = "inventory")
+                "btn_status" -> button.copy(label = "Status", icon = "status")
+                "btn_menu" -> button.copy(label = "Menu", icon = "menu")
+                else -> button
+            }
+        }.toMutableList()
+        val hasJump = updatedButtons.any { button ->
+            button.id == "btn_jump" || button.actions.any { it.type == "key" && it.keyName?.uppercase() == "UP" }
+        }
+        if (!hasJump) {
+            defaultButtons().firstOrNull { it.id == "btn_jump" }?.let { updatedButtons.add(it) }
+        }
+        return config.copy(
+            schemaVersion = TOUCH_OVERLAY_CONFIG_VERSION,
+            layoutLocked = true,
+            buttons = updatedButtons
+        )
+    }
 
     fun importFromJson(raw: String): TouchOverlayConfig =
         jsonFormat.decodeFromString<TouchOverlayConfig>(raw)

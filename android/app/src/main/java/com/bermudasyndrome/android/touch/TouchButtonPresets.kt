@@ -15,18 +15,19 @@ val TOUCH_BUTTON_PRESETS: List<TouchButtonPreset> = listOf(
     // D-Pad
     TouchButtonPreset("dpad", "D-Pad", "dpad_map",
         TouchButtonAction(type = "dpad", mode = "hold"), "Movement"),
+    keyPreset("jump", "Jump", "jump", "UP", "Movement", mode = "hold"),
 
     // Mouse
     mousePreset("mouse_left", "Left Click", "mouse_left", "left"),
     mousePreset("mouse_right", "Right Click", "mouse_right", "right"),
 
     // Bermuda keys
-    keyPreset("use", "Use", "enter", "ENTER", "Actions"),
-    keyPreset("weapon", "Weapon", "space", "SPACE", "Actions"),
-    keyPreset("run", "Run/Holster", "run_toggle", "SHIFT", "Actions", mode = "hold"),
-    keyPreset("inventory", "Inventory", "tab", "TAB", "UI"),
-    keyPreset("status", "Status", "info", "CTRL", "UI", mode = "hold"),
-    keyPreset("menu", "Menu", "escape", "ESCAPE", "UI"),
+    keyPreset("use", "Use", "use", "ENTER", "Actions"),
+    keyPreset("weapon", "Weapon", "weapon", "SPACE", "Actions"),
+    keyPreset("run", "Run/Holster", "run", "SHIFT", "Actions", mode = "hold"),
+    keyPreset("inventory", "Inventory", "inventory", "TAB", "UI"),
+    keyPreset("status", "Status", "status", "CTRL", "UI", mode = "hold"),
+    keyPreset("menu", "Menu", "menu", "ESCAPE", "UI"),
     keyPreset("save", "Save", "quick_save", "S", "UI"),
     keyPreset("load", "Load", "quick_load", "L", "UI"),
     keyPreset("slot_next", "Slot +", "arrow_right", "PAGE_UP", "UI"),

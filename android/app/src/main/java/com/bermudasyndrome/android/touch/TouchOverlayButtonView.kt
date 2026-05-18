@@ -283,21 +283,22 @@ class TouchOverlayButtonView(
         val cx = width / 2f; val cy = height / 2f; val s = minOf(width, height) * 0.28f
         when (icon) {
             "dpad_map" -> drawDpad(canvas, cx, cy, s)
+            "jump" -> drawJump(canvas, cx, cy, s)
             "arrow_up" -> drawArrow(canvas, cx, cy + s, cx, cy - s)
             "arrow_down" -> drawArrow(canvas, cx, cy - s, cx, cy + s)
             "arrow_left" -> drawArrow(canvas, cx + s, cy, cx - s, cy)
             "arrow_right" -> drawArrow(canvas, cx - s, cy, cx + s, cy)
             "mouse_left" -> drawMouse(canvas, cx, cy, s, -1)
             "mouse_right" -> drawMouse(canvas, cx, cy, s, 1)
-            "escape" -> drawCenteredText(canvas, "Esc")
-            "space" -> drawCenteredText(canvas, "Spc")
-            "enter" -> drawCenteredText(canvas, "Ent")
-            "tab" -> drawCenteredText(canvas, "Tab")
-            "info" -> drawCenteredText(canvas, "St")
-            "run_toggle" -> drawCenteredText(canvas, "Run")
-            "quick_save" -> drawCenteredText(canvas, "Sav")
-            "quick_load" -> drawCenteredText(canvas, "Lod")
-            "cancel_action" -> drawCenteredText(canvas, "X")
+            "use", "enter" -> drawUse(canvas, cx, cy, s)
+            "weapon", "space" -> drawWeapon(canvas, cx, cy, s)
+            "run", "run_toggle" -> drawRun(canvas, cx, cy, s)
+            "inventory", "tab" -> drawInventory(canvas, cx, cy, s)
+            "status", "info" -> drawStatus(canvas, cx, cy, s)
+            "menu", "escape" -> drawMenu(canvas, cx, cy, s)
+            "quick_save" -> drawSave(canvas, cx, cy, s)
+            "quick_load" -> drawLoad(canvas, cx, cy, s)
+            "cancel_action" -> drawCancel(canvas, cx, cy, s)
             else -> drawCenteredText(canvas, icon)
         }
     }
@@ -317,6 +318,95 @@ class TouchOverlayButtonView(
         canvas.drawLine(cx - s * 0.72f, cy - s * 0.2f, cx + s * 0.72f, cy - s * 0.2f, iconPaint)
         val dotX = cx + activeSide * s * 0.34f
         canvas.drawCircle(dotX, cy - s * 0.58f, s * 0.16f, iconFillPaint)
+    }
+
+    private fun drawJump(canvas: Canvas, cx: Float, cy: Float, s: Float) {
+        drawArrow(canvas, cx, cy + s * 0.95f, cx, cy - s * 0.92f)
+        canvas.drawArc(RectF(cx - s * 0.7f, cy + s * 0.08f, cx + s * 0.7f, cy + s * 1.08f), 205f, 130f, false, iconPaint)
+    }
+
+    private fun drawUse(canvas: Canvas, cx: Float, cy: Float, s: Float) {
+        val box = RectF(cx - s * 0.85f, cy - s * 0.58f, cx + s * 0.72f, cy + s * 0.58f)
+        canvas.drawRoundRect(box, s * 0.12f, s * 0.12f, iconPaint)
+        drawArrow(canvas, cx + s * 0.1f, cy, cx + s * 1.0f, cy)
+    }
+
+    private fun drawWeapon(canvas: Canvas, cx: Float, cy: Float, s: Float) {
+        val body = Path().apply {
+            moveTo(cx - s * 0.95f, cy - s * 0.2f)
+            lineTo(cx + s * 0.55f, cy - s * 0.2f)
+            lineTo(cx + s * 0.78f, cy)
+            lineTo(cx + s * 0.2f, cy + s * 0.12f)
+            lineTo(cx - s * 0.06f, cy + s * 0.12f)
+            lineTo(cx - s * 0.28f, cy + s * 0.75f)
+            lineTo(cx - s * 0.62f, cy + s * 0.75f)
+            lineTo(cx - s * 0.5f, cy + s * 0.12f)
+            lineTo(cx - s * 0.95f, cy + s * 0.12f)
+            close()
+        }
+        canvas.drawPath(body, iconPaint)
+        canvas.drawLine(cx + s * 0.72f, cy, cx + s * 1.05f, cy, iconPaint)
+    }
+
+    private fun drawRun(canvas: Canvas, cx: Float, cy: Float, s: Float) {
+        canvas.drawCircle(cx - s * 0.18f, cy - s * 0.88f, s * 0.18f, iconFillPaint)
+        canvas.drawLine(cx - s * 0.14f, cy - s * 0.62f, cx + s * 0.18f, cy - s * 0.1f, iconPaint)
+        canvas.drawLine(cx + s * 0.1f, cy - s * 0.34f, cx + s * 0.72f, cy - s * 0.48f, iconPaint)
+        canvas.drawLine(cx + s * 0.18f, cy - s * 0.1f, cx - s * 0.2f, cy + s * 0.72f, iconPaint)
+        canvas.drawLine(cx + s * 0.18f, cy - s * 0.1f, cx + s * 0.82f, cy + s * 0.62f, iconPaint)
+        canvas.drawLine(cx - s * 1.05f, cy + s * 0.9f, cx + s * 1.05f, cy + s * 0.9f, iconPaint)
+    }
+
+    private fun drawInventory(canvas: Canvas, cx: Float, cy: Float, s: Float) {
+        val bag = RectF(cx - s * 0.82f, cy - s * 0.28f, cx + s * 0.82f, cy + s * 0.86f)
+        canvas.drawRoundRect(bag, s * 0.16f, s * 0.16f, iconPaint)
+        canvas.drawArc(RectF(cx - s * 0.46f, cy - s * 0.88f, cx + s * 0.46f, cy - s * 0.02f), 205f, 130f, false, iconPaint)
+        canvas.drawLine(cx - s * 0.42f, cy + s * 0.2f, cx + s * 0.42f, cy + s * 0.2f, iconPaint)
+    }
+
+    private fun drawStatus(canvas: Canvas, cx: Float, cy: Float, s: Float) {
+        val heart = Path().apply {
+            moveTo(cx, cy + s * 0.78f)
+            cubicTo(cx - s * 1.08f, cy, cx - s * 0.72f, cy - s * 0.82f, cx, cy - s * 0.28f)
+            cubicTo(cx + s * 0.72f, cy - s * 0.82f, cx + s * 1.08f, cy, cx, cy + s * 0.78f)
+        }
+        canvas.drawPath(heart, iconPaint)
+        canvas.drawLine(cx - s * 0.84f, cy + s * 0.05f, cx - s * 0.32f, cy + s * 0.05f, iconPaint)
+        canvas.drawLine(cx + s * 0.32f, cy + s * 0.05f, cx + s * 0.84f, cy + s * 0.05f, iconPaint)
+    }
+
+    private fun drawMenu(canvas: Canvas, cx: Float, cy: Float, s: Float) {
+        for (i in -1..1) {
+            val y = cy + i * s * 0.52f
+            canvas.drawLine(cx - s * 0.78f, y, cx + s * 0.78f, y, iconPaint)
+        }
+    }
+
+    private fun drawSave(canvas: Canvas, cx: Float, cy: Float, s: Float) {
+        val disk = RectF(cx - s * 0.78f, cy - s * 0.88f, cx + s * 0.78f, cy + s * 0.88f)
+        canvas.drawRoundRect(disk, s * 0.12f, s * 0.12f, iconPaint)
+        canvas.drawRect(cx - s * 0.42f, cy - s * 0.72f, cx + s * 0.38f, cy - s * 0.2f, iconPaint)
+        canvas.drawLine(cx - s * 0.42f, cy + s * 0.3f, cx + s * 0.42f, cy + s * 0.3f, iconPaint)
+        drawArrow(canvas, cx, cy + s * 0.05f, cx, cy + s * 0.62f)
+    }
+
+    private fun drawLoad(canvas: Canvas, cx: Float, cy: Float, s: Float) {
+        val folder = Path().apply {
+            moveTo(cx - s * 0.9f, cy - s * 0.38f)
+            lineTo(cx - s * 0.28f, cy - s * 0.38f)
+            lineTo(cx - s * 0.08f, cy - s * 0.12f)
+            lineTo(cx + s * 0.88f, cy - s * 0.12f)
+            lineTo(cx + s * 0.72f, cy + s * 0.82f)
+            lineTo(cx - s * 0.82f, cy + s * 0.82f)
+            close()
+        }
+        canvas.drawPath(folder, iconPaint)
+        drawArrow(canvas, cx, cy - s * 0.92f, cx, cy + s * 0.28f)
+    }
+
+    private fun drawCancel(canvas: Canvas, cx: Float, cy: Float, s: Float) {
+        canvas.drawLine(cx - s * 0.7f, cy - s * 0.7f, cx + s * 0.7f, cy + s * 0.7f, iconPaint)
+        canvas.drawLine(cx + s * 0.7f, cy - s * 0.7f, cx - s * 0.7f, cy + s * 0.7f, iconPaint)
     }
 
     private fun drawDpad(canvas: Canvas, cx: Float, cy: Float, s: Float) {

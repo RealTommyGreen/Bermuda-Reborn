@@ -1,0 +1,13 @@
+SoundFont: TimGM6mb.sf2 (Tim Brechbill GM SoundFont v6)
+
+This SoundFont was created by Tim Brechbill and is licensed under the GNU
+General Public License version 2 (GPL v2), as documented by the MuseScore
+project and Debian package metadata.
+
+The file is bundled for use with the Bermuda Syndrome Android port's native
+MIDI playback via TinySoundFont.
+
+IMPORTANT: TimGM6mb is GPL v2, NOT Public Domain. The Bermuda Syndrome Android
+port distributes this SoundFont under the terms of the GPL v2. See
+https://www.gnu.org/licenses/old-licenses/gpl-2.0.html for the full license
+text.

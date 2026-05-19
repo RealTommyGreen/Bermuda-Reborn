@@ -57,10 +57,15 @@ target_include_directories(bs PRIVATE
     "${SDL2_SOURCE_DIR}/include"
 )
 
+target_include_directories(bs PRIVATE
+    "${CMAKE_CURRENT_LIST_DIR}"
+)
+
 target_compile_definitions(bs PRIVATE
     BERMUDA_POSIX
     BERMUDA_ZLIB
     BERMUDA_STB_VORBIS
+    BERMUDA_TSF
 )
 
 target_compile_options(bs PRIVATE

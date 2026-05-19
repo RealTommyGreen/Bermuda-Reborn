@@ -25,7 +25,7 @@ static SystemStub *g_stub;
 
 static void init(const char *dataPath, const char *savePath, const char *musicPath, bool fullscreen, int screenMode) {
 	g_stub = SystemStub_SDL_create();
-	g_game = new Game(g_stub, dataPath ? dataPath : "DATA", savePath ? savePath : ".", musicPath ? musicPath : "MUSIC");
+	g_game = new Game(g_stub, dataPath ? dataPath : "DATA", savePath ? savePath : ".", musicPath ? musicPath : "MUSIC", "");
 	g_game->init(fullscreen, screenMode);
 }
 

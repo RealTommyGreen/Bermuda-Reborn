@@ -14,8 +14,15 @@
 #endif
 
 static const int _fracStepBits = 8;
-static const int _sfxVolume = 256;
-static const int _musicVolume = 192;
+static const int _sfxVolume = 224;
+static const int _musicVolume = 160;
+
+#ifdef BERMUDA_TSF
+#define TSF_IMPLEMENTATION
+#define TML_IMPLEMENTATION
+#include "third_party/tsf.h"
+#include "third_party/tml.h"
+#endif
 
 struct LockAudioStack {
 	LockAudioStack(SystemStub *stub) : _stub(stub) {
@@ -35,6 +42,15 @@ static void mixSample(int16_t &dst, int sample, int volume) {
 		pcm = 32767;
 	}
 	dst = (int16_t)pcm;
+}
+
+static int16_t clampSample(int pcm) {
+	if (pcm < -32768) {
+		return -32768;
+	} else if (pcm > 32767) {
+		return 32767;
+	}
+	return (int16_t)pcm;
 }
 
 struct MixerChannel {
@@ -338,6 +354,116 @@ struct MixerChannel_StbVorbis : MixerChannel {
 };
 #endif
 
+#ifdef BERMUDA_TSF
+struct MixerChannel_Midi : MixerChannel {
+	MixerChannel_Midi(tsf *tsf)
+		: _tsf(tsf), _midiMessages(0), _currentMessage(0),
+		  _msPosition(0), _sampleRate(0), _renderBuf(0), _renderBufSize(0) {
+	}
+
+	~MixerChannel_Midi() {
+		if (_midiMessages) tml_free(_midiMessages);
+		free(_renderBuf);
+	}
+
+	virtual bool load(File *f, int mixerSampleRate) {
+		const int size = f->size();
+		void *midiData = malloc(size);
+		if (!midiData) return false;
+		f->seek(0);
+		f->read(midiData, size);
+
+		_midiMessages = tml_load_memory(midiData, size);
+		free(midiData);
+		if (!_midiMessages) {
+			warning("MixerChannel_Midi: failed to parse MIDI");
+			return false;
+		}
+
+		_currentMessage = _midiMessages;
+		_sampleRate = mixerSampleRate;
+		_renderBufSize = mixerSampleRate * 4;
+		_renderBuf = (int16_t *)malloc(_renderBufSize * sizeof(int16_t));
+		if (!_renderBuf) {
+			_renderBufSize = 0;
+			return false;
+		}
+
+		tsf_reset(_tsf);
+		tsf_channel_set_bank_preset(_tsf, 9, 128, 0);
+
+		debug(DBG_MIXER, "MixerChannel_Midi loaded rate=%d", mixerSampleRate);
+		return true;
+	}
+
+	virtual int read(int16_t *dst, int samples) {
+		if (!_midiMessages || !_tsf) return 0;
+
+		const double msPerSample = 1000.0 / _sampleRate;
+		const double blockEndMs = _msPosition + samples * msPerSample;
+
+		while (_currentMessage && _currentMessage->time < blockEndMs) {
+			switch (_currentMessage->type) {
+			case TML_NOTE_ON:
+				tsf_channel_note_on(_tsf, _currentMessage->channel,
+					_currentMessage->key, _currentMessage->velocity / 127.0f);
+				break;
+			case TML_NOTE_OFF:
+				tsf_channel_note_off(_tsf, _currentMessage->channel,
+					_currentMessage->key);
+				break;
+			case TML_PROGRAM_CHANGE:
+				tsf_channel_set_presetnumber(_tsf, _currentMessage->channel,
+					_currentMessage->program, 0);
+				break;
+			case TML_CONTROL_CHANGE:
+				if (_currentMessage->control == TML_VOLUME_MSB) {
+					tsf_channel_set_volume(_tsf, _currentMessage->channel,
+						_currentMessage->control_value / 127.0f);
+				} else if (_currentMessage->control == TML_PAN_MSB) {
+					tsf_channel_set_pan(_tsf, _currentMessage->channel,
+						_currentMessage->control_value / 127.0f);
+				}
+				break;
+			case TML_PITCH_BEND:
+				tsf_channel_set_pitchwheel(_tsf, _currentMessage->channel,
+					_currentMessage->pitch_bend);
+				break;
+			}
+			_currentMessage = _currentMessage->next;
+		}
+
+		if (!_currentMessage) {
+			return 0;
+		}
+
+		const int needed = samples * 2;
+		if (needed > _renderBufSize) {
+			_renderBufSize = needed;
+			_renderBuf = (int16_t *)realloc(_renderBuf, _renderBufSize * sizeof(int16_t));
+			if (!_renderBuf) return 0;
+		}
+
+		tsf_render_short(_tsf, _renderBuf, samples, 0);
+
+		for (int i = 0; i < samples * 2; ++i) {
+			mixSample(dst[i], _renderBuf[i], _musicVolume);
+		}
+
+		_msPosition = blockEndMs;
+		return samples;
+	}
+
+	tsf *_tsf;
+	tml_message *_midiMessages;
+	tml_message *_currentMessage;
+	double _msPosition;
+	int _sampleRate;
+	int16_t *_renderBuf;
+	int _renderBufSize;
+};
+#endif
+
 struct MixerSoftware: Mixer {
 	static const int kMaxChannels = 4;
 
@@ -345,10 +471,22 @@ struct MixerSoftware: Mixer {
 	int _channelIdSeed;
 	bool _open;
 	MixerChannel *_channels[kMaxChannels];
+	int32_t *_mixBuf;
+	int16_t *_channelBuf;
+	int _mixBufSize;
+#ifdef BERMUDA_TSF
+	tsf *_tsf;
+	char _soundFontPath[512];
+#endif
 
 	MixerSoftware(SystemStub *stub)
-		: _stub(stub), _channelIdSeed(0), _open(false) {
+		: _stub(stub), _channelIdSeed(0), _open(false),
+		  _mixBuf(0), _channelBuf(0), _mixBufSize(0) {
 		memset(_channels, 0, sizeof(_channels));
+#ifdef BERMUDA_TSF
+		_tsf = 0;
+		_soundFontPath[0] = 0;
+#endif
 	}
 
 	virtual ~MixerSoftware() {
@@ -357,13 +495,55 @@ struct MixerSoftware: Mixer {
 				delete _channels[i];
 			}
 		}
+#ifdef BERMUDA_TSF
+		if (_tsf) {
+			tsf_close(_tsf);
+			_tsf = 0;
+		}
+#endif
+		free(_mixBuf);
+		free(_channelBuf);
 	}
+
+	virtual void setSoundFont(const char *path) {
+#ifdef BERMUDA_TSF
+		if (path && path[0]) {
+			strncpy(_soundFontPath, path, sizeof(_soundFontPath) - 1);
+			_soundFontPath[sizeof(_soundFontPath) - 1] = 0;
+		} else {
+			_soundFontPath[0] = 0;
+		}
+#endif
+	}
+
+#ifdef BERMUDA_TSF
+	void loadSoundFontIfNeeded() {
+		if (_open && _soundFontPath[0] && !_tsf) {
+			File f;
+			if (f.open(_soundFontPath)) {
+				const int sz = f.size();
+				void *data = malloc(sz);
+				if (data) {
+					f.read(data, sz);
+					_tsf = tsf_load_memory(data, sz);
+					free(data);
+					if (_tsf) {
+						tsf_set_output(_tsf, TSF_STEREO_INTERLEAVED, _stub->getOutputSampleRate(), 0);
+					}
+				}
+			}
+		}
+	}
+#endif
 
 	virtual void open() {
 		if (!_open) {
 			_stub->startAudio(MixerSoftware::mixCallback, this);
 			_open = true;
 		}
+#ifdef BERMUDA_TSF
+		loadSoundFontIfNeeded();
+#endif
 	}
 
 	virtual void close() {
@@ -389,14 +569,39 @@ struct MixerSoftware: Mixer {
 
 	virtual void playMusic(File *f, int *id) {
 		debug(DBG_MIXER, "Mixer::playMusic()");
-#ifdef BERMUDA_VORBIS
 		LockAudioStack las(_stub);
-		startSound(f, id, new MixerChannel_Vorbis);
+#ifdef BERMUDA_TSF
+		loadSoundFontIfNeeded();
 #endif
 #ifdef BERMUDA_STB_VORBIS
-		LockAudioStack las(_stub);
-		startSound(f, id, new MixerChannel_StbVorbis);
+		{
+			MixerChannel_StbVorbis *mc = new MixerChannel_StbVorbis;
+			if (mc->load(f, _stub->getOutputSampleRate()) && bindChannel(mc, id)) {
+				return;
+			}
+			delete mc;
+		}
 #endif
+#ifdef BERMUDA_VORBIS
+		{
+			MixerChannel_Vorbis *mc = new MixerChannel_Vorbis;
+			if (mc->load(f, _stub->getOutputSampleRate()) && bindChannel(mc, id)) {
+				return;
+			}
+			delete mc;
+		}
+#endif
+#ifdef BERMUDA_TSF
+		if (_tsf) {
+			f->seek(0);
+			MixerChannel_Midi *mc = new MixerChannel_Midi(_tsf);
+			if (mc->load(f, _stub->getOutputSampleRate()) && bindChannel(mc, id)) {
+				return;
+			}
+			delete mc;
+		}
+#endif
+		*id = kDefaultSoundId;
 	}
 
 	virtual bool isSoundPlaying(int id) {
@@ -448,15 +653,41 @@ struct MixerSoftware: Mixer {
 
 	void mix(int16_t *buf, int len) {
 		assert((len & 1) == 0);
-		memset(buf, 0, len * sizeof(int16_t));
+		const int stereoSamples = len;
+		if (stereoSamples > _mixBufSize) {
+			int32_t *mixBuf = (int32_t *)malloc(stereoSamples * sizeof(int32_t));
+			int16_t *channelBuf = (int16_t *)malloc(stereoSamples * sizeof(int16_t));
+			if (!mixBuf || !channelBuf) {
+				free(mixBuf);
+				free(channelBuf);
+				memset(buf, 0, len * sizeof(int16_t));
+				return;
+			}
+			free(_mixBuf);
+			free(_channelBuf);
+			_mixBuf = mixBuf;
+			_channelBuf = channelBuf;
+			_mixBufSize = stereoSamples;
+		}
+		memset(_mixBuf, 0, stereoSamples * sizeof(int32_t));
 		for (int i = 0; i < kMaxChannels; ++i) {
 			MixerChannel *mc = _channels[i];
 			if (mc) {
-				if (mc->read(buf, len / 2) <= 0) {
+				memset(_channelBuf, 0, stereoSamples * sizeof(int16_t));
+				const int framesRead = mc->read(_channelBuf, stereoSamples / 2);
+				if (framesRead <= 0) {
 					delete mc;
 					_channels[i] = 0;
+				} else {
+					const int samplesRead = framesRead * 2;
+					for (int j = 0; j < samplesRead; ++j) {
+						_mixBuf[j] += _channelBuf[j];
+					}
 				}
 			}
+		}
+		for (int i = 0; i < stereoSamples; ++i) {
+			buf[i] = clampSample(_mixBuf[i]);
 		}
 	}
 

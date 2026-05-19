@@ -15,6 +15,18 @@
         android:hardwareAccelerated="false">
 
         <activity
+            android:name=".BermudaLauncherActivity"
+            android:exported="true"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:theme="@style/AppTheme">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
             android:name=".BermudaActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:exported="true"
@@ -22,11 +34,7 @@
             android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustNothing"
             android:theme="@style/AppTheme.Fullscreen"
-            android:hardwareAccelerated="false">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:hardwareAccelerated="false" />
+
     </application>
 </manifest>

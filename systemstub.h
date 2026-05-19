@@ -63,6 +63,7 @@ struct SystemStub {
 	virtual void setYUV(bool flag, int w, int h) = 0;
 	virtual uint8_t *lockYUV(int *pitch) = 0;
 	virtual void unlockYUV() = 0;
+	virtual void setStretchGameplay(bool stretch) {}
 
 	virtual void processEvents() = 0;
 	virtual void sleep(int duration) = 0;

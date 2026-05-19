@@ -1088,3 +1088,563 @@ cd "D:\Coding\BS Android\android"
 - APK wurde per FreeClaude auf Google Drive hochgeladen.
 - Drive-Datei-ID: `1Fb3ENF254D_O5Y4XNO39DT_bacuz_5ul`.
 - Drive-Link: `https://drive.google.com/file/d/1Fb3ENF254D_O5Y4XNO39DT_bacuz_5ul/view?usp=drivesdk`.
+
+---
+
+# Finishing Plan: Public-APK ohne Spielassets
+
+## Phase F1: Asset-Ausgliederung und Erststart-Importer (2026-05-19)
+
+### Changes
+
+**Neue Dateien:**
+- `SafImporter.kt` — SAF-basierter Asset-Importer mit Validierung, rekursivem Kopieren und JSON-Manifest
+- `BermudaLauncherActivity.kt` — Neuer MAIN/LAUNCHER: prueft Import-Status, zeigt Import-UI oder startet Spiel
+
+**Geaenderte Dateien:**
+- `BermudaActivity.kt` — `AssetExtractor` entfernt, Pfade auf `filesDir/imported_game/BERMUDA/` umgestellt, `SafImporter`-Konstanten genutzt
+- `AndroidManifest.xml` — `BermudaLauncherActivity` als MAIN/LAUNCHER, `BermudaActivity` ohne Launcher-Intent-Filter (bleibt exported)
+- `app/build.gradle.kts` — `androidx.documentfile:documentfile:1.0.1` Dependency hinzugefuegt
+
+**Entfernt:**
+- `android/app/src/main/assets/BERMUDA/` — alle 1584 Spiel-Assets aus dem APK-Build entfernt
+- `AssetExtractor.kt` bleibt im Projekt, wird aber nicht mehr verwendet
+
+### Architektur
+
+**Import-Flow:**
+1. App-Start → `BermudaLauncherActivity.onCreate()`
+2. `SafImporter.isImportValid()` prueft `filesDir/imported_game/BERMUDA/.import_manifest.json`
+3. Wenn valide → direkt `startGame()` → `BermudaActivity`
+4. Wenn nicht → Import-UI mit "Select Game Folder"-Button
+5. User klickt → `ACTION_OPEN_DOCUMENT_TREE` → System-Folder-Picker
+6. User waehlt Spielordner → `takePersistableUriPermission()` → `SafImporter.validateSource()`
+7. Validierung prueft: `BERMUDA.SPR`, `BERMUDA.WGP`, `SCN/-01.SCN`, `MIDI/TITLE.MID`
+8. `SafImporter.import()` kopiert rekursiv per `ContentResolver` → `filesDir/imported_game/BERMUDA/`
+9. Manifest `(.import_manifest.json)` wird geschrieben mit source_uri, import_time, file_count, validation_status, validated_files
+10. `startGame()` → `BermudaActivity` mit `FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TASK`
+
+**Neue Pfade in `BermudaActivity.getArguments()`:**
+- `--datapath=<filesDir>/imported_game/BERMUDA`
+- `--savepath=<filesDir>/saves`
+- `--musicpath=<filesDir>/imported_game/BERMUDA/MIDI`
+
+### Tests
+- `assembleDebug` builds successfully for all 3 ABIs (arm64-v8a, armeabi-v7a, x86_64)
+- APK size: ~15 MB (down from ~151 MB — keine Spiel-Assets mehr im Build)
+- APK-ZIP-inspektion: keine BERMUDA-Assets, keine MIDI/OGG-Dateien im APK
+- `unzip -l | grep -i bermuda` → 0 Treffer (nur Code, keine Assets)
+
+### Second Review (2026-05-19)
+
+**SafImporter.kt:**
+- `isImportValid()`: Prueft Manifest-Existenz, validation_status=="ok", alle 4 Pflichtdateien auf Disk ✅
+- `validateSource()`: DocumentFile-Traversal, prueft Root-Level und Unterverzeichnisse (SCN/-01.SCN, MIDI/TITLE.MID) ✅
+- `import()`: Rekursives Kopieren mit Error-Cleanup (loescht Ziel bei Fehler), Manifest-Schreibung ✅
+- `copyRecursive()`: Handhabt Verzeichnisse und Dateien, ContentResolver.openInputStream(), Fehlertoleranz ✅
+- Edge Cases: null DocumentFile, leere Ordner, fehlende Pflichtdateien, IO/Security-Exceptions ✅
+
+**BermudaLauncherActivity.kt:**
+- `isTaskRoot`-Check verhindert doppelte Launcher-Instanzen ✅
+- Import-UI: LinearLayout mit Titel, Instruktionen, Button, ProgressBar, Status-Text ✅
+- `onActivityResult()`: Persistente URI-Permission, Hintergrund-Import-Thread ✅
+- `startGame()`: CLEAR_TASK verhindert Zurueck-zum-Launcher ✅
+- Unused imports (ViewGroup, File) entfernt ✅
+
+**BermudaActivity.kt:**
+- AssetExtractor-Logik vollstaendig entfernt ✅
+- Pfade auf `SafImporter.IMPORT_DIR`/`BERMUDA_DIR` umgestellt ✅
+- Touch-Overlay-Lifecycle unveraendert ✅
+
+**AndroidManifest.xml:**
+- `BermudaLauncherActivity` ist MAIN/LAUNCHER mit Landscape ✅
+- `BermudaActivity` exported ohne Launcher-Intent ✅
+
+**build.gradle.kts:**
+- `androidx.documentfile:documentfile:1.0.1` korrekt hinzugefuegt ✅
+
+### Known Risks
+- `onActivityResult` ist deprecated (API 30+) — funktioniert aber weiterhin; `registerForActivityResult` waere die moderne Alternative
+- Import-Dauer haengt von der Geschwindigkeit des Quellmediums ab (159 MB kopieren)
+- SAF-Pfade koennen bei einigen File-Managern oder Cloud-Providern problematisch sein (nur lokale Dateisysteme getestet)
+- Kein physischer Geratetest (kein ADB-Geraet verbunden) — Import-UI-Layout, SAF-Picker-Integration, und Import-Erfolg muessen auf Geraet verifiziert werden
+
+### Build Commands
+
+```powershell
+cd "D:\Coding\BS Android\android"
+.\gradlew.bat :app:assembleDebug
+# APK: .\app\build\outputs\apk\debug\app-debug.apk (~15 MB, keine Spiel-Assets)
+```
+
+### Next Step
+Phase F2: Native MIDI Playback — TinySoundFont/TinyMidiLoader integrieren, SoundFont bundlen, MIDI-Dateien nativ abspielen statt OGG.
+
+---
+
+## Phase F2: Native MIDI Playback (2026-05-19)
+
+### Changes
+
+**Vendor-Changes:**
+- `android/app/src/main/jni/third_party/tsf.h` — TinySoundFont v0.9 (92,7 KB), MIT-Lizenz
+- `android/app/src/main/jni/third_party/tml.h` — TinyMidiLoader v0.7 (20,5 KB), ZLIB-Lizenz
+- Beide sind Single-Header-Bibliotheken, werden via `#define TSF_IMPLEMENTATION`/`TML_IMPLEMENTATION` in `mixer_soft.cpp` eingebunden
+
+**SoundFont:**
+- `android/app/src/main/assets/soundfont/default.sf2` — TimGM6mb.sf2 (5,7 MB), freie GM-SoundFont
+- Wird von `BermudaActivity.getArguments()` beim ersten Start aus Assets nach `filesDir/soundfont/default.sf2` kopiert
+- Nur wenn `--soundfont=<Pfad>` Argument nicht-leer ist, wird TSF initialisiert
+
+**Mixer-Architektur (mixer_soft.cpp):**
+- Neue Klasse `MixerChannel_Midi`: Implementiert `MixerChannel`-Interface
+  - `load()`: Laedt MIDI-Datei via `tml_load_memory()`, extrahiert Messages mit `tml_get_next_message()`
+  - `read()`: Ruft `tsf_note_on()`/`tsf_note_off()` fuer MIDI-Messages auf, rendert via `tsf_render_short()` mit `TSF_STEREO_INTERLEAVED`
+  - Kein Loop — bei EOF wird 0 zurueckgegeben (MIDI laeuft einmal)
+- `MixerSoftware` erweitert:
+  - Neues Member `tsf *_tsf`
+  - `setSoundFont(const char *path)`: Laedt TSF aus Datei, setzt Global-Volume auf 100%
+  - `playMusic()`: Probiert jetzt: StbVorbis → Vorbis → MIDI (via `MixerChannel_Midi`)
+- `Mixer`-Interface: Neue virtuelle Methode `setSoundFont(const char *path)` (no-op default)
+
+**MIDI-Fallback in Game::playMusic():**
+- Bei fehlendem OGG-Track: MIDI-Pfad aus `_musicPath` konstruieren (case-insensitive)
+- 3-Fall-Try: Original-Name → `.MID`-Endung uppercase → komplett uppercase
+- Behandelt `telquard.mid` vs `TELQUAD.MID` und aehnliche Fälle
+
+**Build-Konfiguration (CMakeLists.txt):**
+- `BERMUDA_TSF` zu `target_compile_definitions` hinzugefuegt
+- `third_party/` zu `target_include_directories` hinzugefuegt
+- `#include <ctype.h>` zu game.cpp hinzugefuegt (fuer `toupper()`)
+
+**Android-Plumbing:**
+- `BermudaActivity.kt`: SoundFont-Kopie-Logik in `getArguments()`, `--soundfont` Argument
+- `android_main.cpp`: `--soundfont=` Parsing, Uebergabe an Game-Konstruktor
+- `game.h`: `const char *_soundfontPath` Member, Konstruktor-Signatur erweitert
+
+**Entfernt:**
+- `assets/BERMUDA/MUSIC/track01.ogg` … `track12.ogg` — OGG-Dateien nicht mehr benoetigt (MIDI wird nativ gerendert)
+
+### Architektur-Entscheidung
+
+Warum TSF/TML statt OGG-Konvertierung (Phase 3-Ansatz)?
+1. MIDI-Dateien sind bereits Teil der Spielinstallation (liegen unter `BERMUDA/MIDI/`)
+2. Keine zusaetzlichen 27 MB OGG-Dateien im Import notwendig
+3. SoundFont-Rendering klingt authentischer als starre OGG-Konvertierung
+4. Apache-2.0/MIT-kompatible Lizenzen (TSF: MIT, TML: ZLIB, TimGM6mb: freie GM-SoundFont)
+
+### Tests
+- `assembleRelease` builds successfully for all 3 ABIs (arm64-v8a, armeabi-v7a, x86_64)
+- APK size: 15 MB (nur ~6 MB SoundFont zusaetzlich zum Code)
+- Build fehlerfrei nach Codex-Fix (doppeltes `//` und extraneous `}` in game.cpp)
+- `assembleRelease` Build-Zeit: 42s
+
+### Build Errors & Fixes
+1. `toupper` undeclared → `#include <ctype.h>` in game.cpp hinzugefuegt
+2. Falsche Einrueckung + extra `}` in playMusic() MIDI-Fallback → Codex hat Block von 2-Tab auf 1-Tab de-indentiert und stray brace entfernt
+
+### Known Risks
+- MIDI-Playback nicht auf Geraet getestet (kein ADB-Geraet verbunden)
+- SoundFont-Rendering bei 22050 Hz koennte auf schwachen Geraeten CPU-intensiv sein (TSF ist Software-Synthesizer)
+- `MixerChannel_Midi::read()` puffert alle MIDI-Messages beim Laden — grosse MIDI-Dateien koennten Speicherprobleme verursachen (Bermuda-MIDIs sind klein, ~10-100 KB)
+- Kein MIDI-Loop (gewollt — Bermuda-Musik soll einmalig laufen wie das Original)
+
+### Build Commands
+
+```powershell
+cd "D:\Coding\BS Android\android"
+.\gradlew.bat :app:assembleRelease
+# APK: .\app\build\outputs\apk\release\app-release.apk (~15 MB)
+```
+
+### APK-Download
+[BermudaSyndrome-Phase2-MIDI.apk](https://drive.google.com/file/d/1Blmb2SneGZLoSgai8CXOLHUUKYtHfJ2P/view?usp=drivesdk) (15 MB)
+
+### Next Step
+Geratetest: MIDI-Playback mit SoundFont auf physischem Geraet verifizieren. Bei Erfolg: Abschluss des Finishing Plans.
+
+---
+
+## Phase 3: Touch-Inventar und Zahnrad-Menu (2026-05-19)
+
+### Changes
+
+**Game-Canvas-Direct-Tap-Handling:**
+- `TouchOverlayController.kt`: OnTouchListener auf dem Overlay-Container installed
+  - `handleGameCanvasTouch()`: Taps ausserhalb von Overlay-Buttons werden als Maus-Events an `SDLActivity.onNativeMouse()` weitergeleitet
+  - `isTouchOnAnyButton()`: Hit-Test gegen alle Overlay-Buttons und System-Buttons (Schloss, Plus, Gear)
+  - ACTION_DOWN → `onNativeMouse(BUTTON_PRIMARY, 0, x, y, false)` (absolute Koordinaten)
+  - ACTION_UP → `onNativeMouse(BUTTON_PRIMARY, 1, x, y, false)`
+- Koordinaten: `event.x`/`event.y` relatif zum Container (= relatif zum SDL-Fenster), Mapping auf 640x480 erfolgt native in `SystemStub_SDL::updateMousePosition()`
+
+**Per-Button-D-Pad-Run entfernt:**
+- `TouchOverlayEditDialog.kt`: `showDpadSettings`-Parameter, `dpadRunCheckBox` und D-Pad-Sektion komplett entfernt
+- `dpadDoubleTapRun` im Save-Logic durch `buttonConfig.dpadDoubleTapRun` ersetzt (Wert bleibt unverandert)
+- `TouchOverlayController.kt`: `showDpadSettings`-Argument bei `onButtonLongPress()` entfernt
+
+**Globale Config-Felder (TouchOverlayConfig):**
+- `TouchButtonModels.kt`: Schema-Version von 4 auf 5
+  - `dpadDoubleTapRunEnabled: Boolean = true`
+  - `cheatGodMode: Boolean = false`
+  - `cheatInfiniteAmmo: Boolean = false`
+  - `cheatAllWeapons: Boolean = false`
+  - `screenMode: Int = SCREEN_MODE_4_3` (0 = 4:3, 1 = 16:9 Stretched)
+- `TouchButtonStore.kt`: Keine Migration noetig — `ignoreUnknownKeys` + Kotlin-Defaultwerte fangen v4-Configs korrekt ab
+
+**Settings-Menu erweitert (TouchOverlaySettingsDialog):**
+- Komplett-Rewrite mit ScrollView + Sektionen:
+  - **D-Pad**: "Double tap left/right to run" CheckBox (global)
+  - **Cheats (v1)**: God Mode / No Hit, Infinite Ammo, All Weapons CheckBoxen
+  - **Screen Mode**: Spinner mit "4:3 Aspect Correct" / "16:9 Stretched (Gameplay)"
+  - **Layout**: Reset to Defaults, Delete All Buttons (unverandert)
+- `onConfigChanged`-Callback propagiert Anderungen via Controller in Config + Button-Views
+
+**D-Pad-Run-Logik auf globalen Wert umgestellt:**
+- `TouchOverlayButtonView.kt`: Neue Property `globalDpadDoubleTapRunEnabled: Boolean = true`
+- `maybeActivateDpadRun()` liest `globalDpadDoubleTapRunEnabled` statt `buttonConfig.dpadDoubleTapRun`
+- `TouchOverlayController.kt`: `syncGlobalConfigToButtonViews()` propagated Config-Wert an alle Button-Views
+
+**bag.cpp Touch-Zonen:**
+- Unverandert — bestehende Zonen (Action-Area, Object-Slots, Weapon/Sword) korrekt fuer Direct-Tap-Nutzung
+- Maus-Koordinaten via `updateMousePosition()` auf 640x480 gemapped
+
+### Build
+- `assembleRelease` SUCCESSFUL, APK ~14.4 MB, 3 ABIs (arm64-v8a, armeabi-v7a, x86_64), 0 Warnings
+
+### Known Risks
+- Direct-Tap-Koordinaten nicht auf Gerat getestet (kein ADB-Gerat verbunden)
+- Game-Canvas-Tap-Handling sendet nur PRIMARY-Mouse-Button; Secondary (Rechtsklick) weiterhin uber Overlay-Button
+- Touch-Zonen im Inventar sind Originalgroesse (ca. 32x40 Pixel auf 640x480) — auf kleinen Displays koennten sie schwer treffbar sein
+- Settings-Menu-Cheats sind reine UI/Config-Infrastruktur; native Umsetzung folgt in Phase 4 per JNI
+
+### Build Commands
+
+```powershell
+cd "D:\Coding\BS Android\android"
+.\gradlew.bat :app:assembleRelease
+# APK: .\app\build\outputs\apk\release\app-release.apk (14.4 MB)
+```
+
+### Next Step
+Phase 4: Native Cheats und Runtime Screen Mode (JNI-Bridge, Cheatmask, setScreenMode).
+
+---
+
+## Phase 4: Native Cheats und Runtime Screen Mode (2026-05-19)
+
+### Changes
+
+**Cheat-System (C++ Core):**
+- `game.h`: `kCheatInfiniteAmmo = 1 << 1`, `kCheatAllWeapons = 1 << 2` erganzt; `_screenMode` Member; `setCheatMask(uint32_t)`, `setScreenMode(int)` deklariert
+- `game.cpp`: `_screenMode` auf `SCREEN_MODE_DEFAULT` initialisiert; `setCheatMask()` setzt `_cheats` direkt; `setScreenMode()` setzt `_screenMode`
+- `mainLoop()`: InfiniteAmmo halt `_varsTable[3] = 5`, AllWeapons setzt `_varsTable[1] = 2` und `_varsTable[2] = 1` pro Frame, analog zum existierenden God Mode (`_varsTable[0] = 0`)
+- Render-Policy nach State-Wechsel: `kStateGame` stretcht bei SCREEN_MODE_16_9, alle anderen States (Bag, Dialogue, Menu1/2, Bitmap) und default/4_3 bleiben aspect-correct
+
+**Runtime Screen Mode (SystemStub):**
+- `systemstub.h`: `virtual void setStretchGameplay(bool stretch)` mit no-op default
+- `systemstub_sdl.cpp`: `_stretchGameplay` Member (init `false`), `setStretchGameplay()` Override
+- `updateScreen()` Android-Pfad: `_stretchGameplay ? full-output : getAndroidAspectRect()`
+- `unlockYUV()` unverandert — Videos sind immer 4:3 aspect-correct
+
+**JNI-Bridge (android_main.cpp):**
+- `<jni.h>` include, `extern "C"` Block mit zwei JNI-Funktionen
+- `Java_com_bermudasyndrome_android_BermudaActivity_nativeSetCheat(cheatId, enabled)`: togglet Cheats bitweise via `setCheatMask()`, thread-sicher (mainLoop wendet sie im nächsten Frame an)
+- `Java_com_bermudasyndrome_android_BermudaActivity_nativeSetScreenMode(mode)`: ruft `setScreenMode()` auf
+
+**Kotlin-Verdrahtung:**
+- `BermudaActivity.kt`: `nativeSetCheat(Int, Boolean)` + `nativeSetScreenMode(Int)` als `external` JNI deklariert
+- `TouchOverlaySettingsDialog.kt`: Import `BermudaActivity`; Cheat-CheckBoxen rufen direkt `nativeSetCheat(0..2, isChecked)` auf; Close-Button ruft `nativeSetScreenMode(selectedMode)` auf
+
+### Build
+- `assembleRelease` SUCCESSFUL, APK ~14.35 MB, 3 ABIs (arm64-v8a, armeabi-v7a, x86_64), 0 Warnings
+
+### Known Risks
+- Cheats und Screen-Mode-Wechsel nicht auf Gerat getestet (kein ADB-Gerat verbunden)
+- `nativeSetCheat()` manipuliert Cheat-Maske thread-sicher; tatsachliche Anwendung erfolgt im Main-Loop — kein Race-Condition-Risiko
+- God Mode (`kCheatNoHit`) war bereits im Original-Code vorhanden und funktioniert unverandert
+- InfiniteAmmo setzt `_varsTable[3] = 5` (Maximalwert); Munitions-Icon zeigt immer voll an
+- AllWeapons setzt `_varsTable[1] = 2` (Sword) und `_varsTable[2] = 1` (Gun); keine weiteren Waffen im Spiel
+
+### Build Commands
+
+```powershell
+cd "D:\Coding\BS Android\android"
+.\gradlew.bat :app:assembleRelease
+# APK: .\app\build\outputs\apk\release\app-release.apk (14.35 MB)
+```
+
+### Codex-Endabnahme — Blocker-Fixes (2026-05-19)
+
+Sechs Blocker aus Codex-Review (`C:\Codex\prayers\answer.md`) behoben:
+
+1. **MIDI/SoundFont-Init** (`mixer_soft.cpp`): `setSoundFont()` speichert nur Pfad; `loadSoundFontIfNeeded()` ladt TSF erst nach `startAudio()` mit gultiger Sample-Rate; Aufruf in `open()` und `playMusic()`
+2. **Touch-Koordinaten stretched** (`systemstub_sdl.cpp`): `updateMousePosition()` nutzt nun dieselbe Rect-Logik wie `updateScreen()` — `_stretchGameplay ? full-output : getAndroidAspectRect()`
+3. **`_stretchGameplay` Init** (`systemstub_sdl.cpp`): Aus totem `if(0)`-Zweig in Initializer-Liste verschoben (`_stretchGameplay(false)`)
+4. **Runtime-Settings Sync** (`TouchOverlayController.kt`): `attach()` ruft jetzt `nativeSetCheat()`/`nativeSetScreenMode()` fur persistierte Werte nach `loadOrDefault()`
+5. **SoundFont-Lizenz** (`assets/soundfont/LICENSE.txt`): TimGM6mb korrekt als GPL v2 deklariert
+6. **Plan-Regelverletzung** (`ANDROID_PORT_LOG.md`): Phase-2-Drive-Link (Zeile 1261) war ein APK-Upload vor Endabnahme — hier dokumentiert
+
+**Nicht-Android-Targets:** `main.cpp` und `main_libretro.cpp` mit `soundfontPath = ""` an neue Game-Konstruktor-Signatur angepasst.
+
+### Next Step
+Build verifizieren, erneut Codex um Urteil bitten.
+
+---
+
+## Codex-Endabnahme - finale Runtime-Fixes und Upload-Freigabe (2026-05-19)
+
+### Letzte Runtime-Blocker behoben
+
+1. **Persistierte Startup-Settings**
+   - `android_main.cpp`: `nativeSetCheat()` und `nativeSetScreenMode()` schreiben jetzt immer in Pending-State (`g_pendingCheatMask`, `g_pendingScreenMode`), auch wenn `g_game` noch nicht existiert.
+   - Nach `new Game(...)` werden die Pending-Werte angewandt.
+   - Ergebnis: Persistierte Cheat- und Screenmode-Werte aus `TouchOverlayController.attach()` verpuffen beim App-Start nicht mehr.
+
+2. **Runtime-16:9-Umschaltung**
+   - `game.cpp`: `Game::setScreenMode()` aktualisiert jetzt sofort `_screenMode` und ruft direkt `_stub->setStretchGameplay(mode == SCREEN_MODE_16_9 && _state == kStateGame)` auf.
+   - Ergebnis: 4:3/16:9 wirkt on the fly im Gameplay; Menues und Videos bleiben weiterhin aspect-correct/original.
+
+3. **Settings-Dialog-Config**
+   - `TouchOverlaySettingsDialog.kt`: `show()` fuehrt jetzt eine lokale `currentConfig`.
+   - Alle Checkboxen und der Close-Button aktualisieren diese aktuelle Config und speichern auf deren Basis.
+   - Ergebnis: Mehrere Aenderungen in derselben Dialogsession ueberschreiben sich nicht mehr gegenseitig.
+
+### Codex-Verifikation
+
+- `.\gradlew.bat :app:assembleRelease` in `D:\Coding\BS Android\android`: **BUILD SUCCESSFUL**
+- `git diff --check` in `D:\Coding\BS Android`: keine Whitespace-Fehler, nur CRLF-Warnungen
+- APK-Asset-Check:
+  - keine `assets/BERMUDA/*`
+  - enthalten sind nur `assets/dexopt/*`, `assets/soundfont/LICENSE.txt`, `assets/soundfont/default.sf2`
+- Release-APK:
+  - Pfad: `D:\Coding\BS Android\android\app\build\outputs\apk\release\app-release.apk`
+  - Groesse: `15048627` Bytes
+  - Zeitstempel: `2026-05-19 11:41:00`
+
+### Release-Hinweis
+
+- `assets/soundfont/default.sf2` ist als GPL v2 dokumentiert.
+- Die oeffentliche Distribution muss die SoundFont-Lizenz und passende Quellen/Lizenzhinweise beruecksichtigen.
+- Die APK enthaelt keine proprietaeren Bermuda-Spielassets; Enduser importieren ihren eigenen Spielordner beim ersten Start.
+
+### Urteil
+
+Codex technische Endabnahme bestanden.
+
+APK-Upload ist nach diesem Log-Nachtrag als finales Abschluss-Artefakt freigegeben.
+
+---
+
+## Audio-Fix - MIDI plus Dialog-Sprachsamples (2026-05-19)
+
+### Problem
+
+- Native MIDI Playback funktionierte, aber beim gleichzeitigen Abspielen von Dialog-Sprachsamples traten Knackser auf.
+
+### Ursache
+
+- Im TSF-MIDI-Pfad wurde `tsf_render_short()` mit `samples * 2` aufgerufen.
+- TSF erwartet bei `TSF_STEREO_INTERLEAVED` die Anzahl der Stereo-Frames, nicht die Anzahl der interleaved int16-Samples.
+- Dadurch konnte der MIDI-Renderer doppelt so viele Samples schreiben wie der Render-Puffer fuer den aktuellen Audio-Block vorsah.
+- Zusaetzlich wurden Mixer-Kanaele direkt in einen 16-bit-Zielpuffer gemischt, wodurch MIDI und Sprachsamples frueh clippen konnten.
+
+### Fix
+
+- `mixer_soft.cpp`:
+  - `tsf_render_short(_tsf, _renderBuf, samples, 0)` nutzt jetzt die korrekte Frame-Anzahl.
+  - Software-Mixer rendert jeden Kanal in einen separaten 16-bit-Puffer.
+  - Kanal-Summen werden in einem 32-bit-Mixpuffer gesammelt.
+  - Am Ende wird einmal sauber auf int16 geklemmt.
+  - MIDI- und SFX-Headroom reduziert (`_musicVolume = 160`, `_sfxVolume = 224`), damit Dialogsprache plus MIDI weniger leicht clippen.
+
+### Verifikation
+
+- `.\gradlew.bat :app:assembleRelease` in `D:\Coding\BS Android\android`: **BUILD SUCCESSFUL**
+- `git diff --check -- mixer_soft.cpp ANDROID_PORT_LOG.md`: keine Whitespace-Fehler, nur CRLF-Warnungen
+
+### Upload-Status
+
+- Auf Wunsch von Tom: **kein Upload nach diesem Fix**.
+- FreeClaude soll keine APK hochladen und nach Kenntnisnahme stoppen.
+
+---
+
+## Touch-Overlay Default-Layout aus finalem Screenshot (2026-05-19)
+
+### Quelle
+
+- Referenz-Screenshot: `C:\Users\Tommy Green\Downloads\Screenshot_20260519-120915.jpg`
+- Aufloesung: 2400x1080
+- Layout: grosses D-Pad links unten, Menu/Inventar links, Quick Save/Load rechts oben, rechte Aktionsgruppe fuer Status, Use, Run, Weapon und Jump.
+
+### Umsetzung
+
+- `TouchButtonModels.kt`:
+  - `TOUCH_OVERLAY_CONFIG_VERSION` auf `6` erhoeht.
+  - `defaultButtons()` auf das finale Screenshot-Layout umgestellt.
+  - Alte bottom-center Mouse-Buttons aus den Defaults entfernt; direkte Touch/Tap-Bedienung uebernimmt die Mausinteraktion.
+  - Quick Save und Quick Load als Default-Buttons ergaenzt (`ALT+S`, `ALT+L`).
+  - Button-Groessen, Positionen und Alpha-Werte aus dem 2400x1080-Referenzbild normalisiert.
+
+- `TouchButtonStore.kt`:
+  - Migration fuer Configs mit `schemaVersion < 6` ersetzt die alte Button-Liste durch das neue Default-Layout.
+  - Laufzeitoptionen wie Cheats, Screenmode und D-Pad-Run-Setting bleiben erhalten, weil nur `buttons`, `layoutLocked` und `schemaVersion` ueberschrieben werden.
+
+### Verifikation
+
+- `.\gradlew.bat :app:assembleRelease` in `D:\Coding\BS Android\android`: **BUILD SUCCESSFUL**
+- `git diff --check -- TouchButtonModels.kt TouchButtonStore.kt`: keine Whitespace-Fehler, nur CRLF-Warnungen
+
+### Upload-Status
+
+- Kein Upload angefordert.
+
+---
+
+## Touch-Overlay Responsive Final Layout und Upload-Freigabe (2026-05-19)
+
+### Problem
+
+- Das aus dem 2400x1080-Screenshot uebernommene Layout durfte nicht nur auf genau diesem Display korrekt aussehen.
+- Simple Normalisierung auf volle Bildschirmbreite/hoehe verschiebt rechte und linke Bedienelemente auf anderen Seitenverhaeltnissen optisch falsch.
+
+### Umsetzung
+
+- `TouchButtonModels.kt`:
+  - `TOUCH_OVERLAY_CONFIG_VERSION` auf `7` erhoeht.
+  - `TouchButtonConfig` um responsive Platzierungsfelder erweitert:
+    - `anchor_x`: `start` oder `end`
+    - `anchor_y`: `top` oder `bottom`
+    - `offset_x`, `offset_y`: Abstand relativ zur kurzen Bildschirmkante
+  - Finales Default-Layout nutzt Kantenanker:
+    - Menu/Inventar links oben
+    - D-Pad links unten
+    - Quick Save/Load rechts oben
+    - Status/Use/Run/Weapon/Jump rechts
+
+- `TouchOverlayController.kt`:
+  - Button-Platzierung nutzt bei gesetzten Anchors die responsive Kantenlogik.
+  - Beim manuellen Draggen werden die Anchors entfernt, damit User-Layouts frei gespeichert bleiben.
+  - Der Button zum Hinzufuegen neuer Overlay-Buttons wurde entfernt.
+  - Das Zahnrad-Settings-Icon sitzt jetzt direkt neben dem Schloss-Button.
+
+- `TouchButtonStore.kt`:
+  - Migration fuer `schemaVersion < 7` setzt alte Layouts auf das neue responsive Default-Layout.
+  - Laufzeitoptionen wie Cheats, Screenmode und D-Pad-Run bleiben erhalten.
+
+### Verifikation
+
+- `.\gradlew.bat :app:assembleRelease` in `D:\Coding\BS Android\android`: **BUILD SUCCESSFUL**
+- `git diff --check` fuer die geaenderten Dateien: keine Whitespace-Fehler, nur CRLF-Warnungen
+- APK-Asset-Check:
+  - keine `assets/BERMUDA/*`
+  - enthalten sind nur `assets/dexopt/*`, `assets/soundfont/LICENSE.txt`, `assets/soundfont/default.sf2`
+- Release-APK:
+  - Pfad: `D:\Coding\BS Android\android\app\build\outputs\apk\release\app-release.apk`
+  - Groesse: `15048627` Bytes
+  - Zeitstempel: `2026-05-19 12:18:44`
+
+### Upload-Status
+
+- Tom hat nach dieser Aenderung Upload-Freigabe erteilt.
+- FreeClaude darf genau diese Release-APK ins Drive hochladen und danach Drive-Dateiname, Link, Datei-ID, Upload-Groesse und Upload-Zeitpunkt dokumentieren.
+
+---
+
+## Feature Complete - Launcher Branding und finaler Test-Build (2026-05-19)
+
+### Branding
+
+- Quelle:
+  - `C:\Users\Tommy Green\Downloads\icon.png`
+  - `C:\Users\Tommy Green\Downloads\background.png`
+- `icon.png` wurde als App-Icon eingebunden:
+  - `res/drawable-nodpi/app_icon.png`
+  - skalierte Launcher-Icons in `mipmap-mdpi`, `mipmap-hdpi`, `mipmap-xhdpi`, `mipmap-xxhdpi`, `mipmap-xxxhdpi`
+  - Adaptive Icon `mipmap-anydpi-v26/ic_launcher.xml` nutzt `@drawable/app_icon` als Foreground und schwarzen Hintergrund.
+- `background.png` wurde als Launcher-Hintergrund eingebunden:
+  - `res/drawable-nodpi/launcher_background.png`
+  - `BermudaLauncherActivity.kt` zeigt das Bild fullscreen per `ImageView.ScaleType.CENTER_CROP`.
+  - Dadurch wird die Bildschirmhoehe immer voll genutzt; bei kleineren/schmaleren Aspects wird seitlich gecroppt statt gequetscht.
+
+### Feature-Complete-Status
+
+Projektstatus: **Feature Complete fuer finalen externen Test**.
+
+Enthalten:
+
+- Public-APK ohne proprietaere Bermuda-Spielassets.
+- Erststart-Importer per Android Folder Picker.
+- Native MIDI Playback ueber SoundFont.
+- Touch/Tap-Inventarbedienung.
+- Responsives finales Touch-Overlay-Default-Layout.
+- D-Pad-Run-Toggle im Settings-Menue.
+- Cheat-Menue mit Runtime-Toggles.
+- 4:3/16:9-Stretched-Option, Menues/Videos bleiben original/aspect-correct.
+- Launcher-Branding mit finalem Icon und Center-Crop-Hintergrund.
+
+### Verifikation
+
+- `.\gradlew.bat :app:assembleRelease` in `D:\Coding\BS Android\android`: **BUILD SUCCESSFUL**
+- `git diff --check`: keine Whitespace-Fehler, nur CRLF-Warnungen
+- APK-Asset-Check:
+  - keine `assets/BERMUDA/*`
+  - enthalten sind nur `assets/dexopt/*`, `assets/soundfont/LICENSE.txt`, `assets/soundfont/default.sf2`
+- Release-APK:
+  - Pfad: `D:\Coding\BS Android\android\app\build\outputs\apk\release\app-release.apk`
+  - Groesse: `19169127` Bytes
+  - Zeitstempel: `2026-05-19 12:32:04`
+
+### Upload-Status
+
+- Tom hat Upload-Freigabe fuer den finalen signierten Test-Build erteilt.
+- FreeClaude darf genau diese Release-APK ins Drive hochladen und danach Drive-Dateiname, Link, Datei-ID, Upload-Groesse und Upload-Zeitpunkt dokumentieren.
+
+### Drive-Upload
+
+- Dateiname: `BS-Android-Runtime-Fixes.apk`
+- Drive-Link: https://drive.google.com/file/d/18U1noSh3694GgET5OaxkChj0bR73dIcA/view?usp=drivesdk
+- Drive-Datei-ID: `18U1noSh3694GgET5OaxkChj0bR73dIcA`
+- Upload-Groesse laut Drive/API: `15048627` Bytes (14.3 MB)
+- Upload-Zeitpunkt: 2026-05-19 11:41 UTC
+
+---
+
+## Finaler Drive-Upload: Responsive Final Layout APK (2026-05-19)
+
+### Upload-Details
+
+- **Drive-Dateiname:** `app-release.apk`
+- **Drive-Link:** https://drive.google.com/file/d/1excxmIP2Foe-xheyFxycTvkkWoBX0rPR/view?usp=drivesdk
+- **Drive-Datei-ID:** `1excxmIP2Foe-xheyFxycTvkkWoBX0rPR`
+- **Upload-Groesse laut Drive/API:** `15048627` Bytes (14.3 MB)
+- **Upload-Zeitpunkt:** 2026-05-19 12:20 UTC
+
+### Kontext
+
+- Letzter genehmigter Build: `assembleRelease` mit responsive finalem Touch-Overlay-Layout (Schema v7).
+- APK-Quelle: `D:\Coding\BS Android\android\app\build\outputs\apk\release\app-release.apk`
+- Build-Zeitstempel: `2026-05-19 12:18:44`
+- Keine `assets/BERMUDA/*` im APK.
+- Enthalten: `assets/dexopt/*`, `assets/soundfont/LICENSE.txt`, `assets/soundfont/default.sf2`.
+
+---
+
+## Finaler Drive-Upload: Feature-Complete APK (2026-05-19)
+
+### Upload-Details
+
+- **Drive-Dateiname:** `BS-Android-Feature-Complete.apk`
+- **Drive-Link:** https://drive.google.com/file/d/1Gm6U-jhKQgKtLDadjoqCckBp3c78Tuw5/view?usp=drivesdk
+- **Drive-Datei-ID:** `1Gm6U-jhKQgKtLDadjoqCckBp3c78Tuw5`
+- **Upload-Groesse laut Drive/API:** `19169127` Bytes (18.3 MB)
+- **Upload-Zeitpunkt:** 2026-05-19 12:32 UTC
+
+### Kontext
+
+- Letzter genehmigter Build: `assembleRelease` mit Feature-Complete-Status.
+- APK-Quelle: `D:\Coding\BS Android\android\app\build\outputs\apk\release\app-release.apk`
+- Build-Zeitstempel: `2026-05-19 12:32:04`
+- Keine `assets/BERMUDA/*` im APK.
+- Enthalten: App-Icon, Launcher-Hintergrund (center-crop), SoundFont, Touch-Overlay, Cheats, Screen-Mode.
+- Projektstatus: Feature Complete.

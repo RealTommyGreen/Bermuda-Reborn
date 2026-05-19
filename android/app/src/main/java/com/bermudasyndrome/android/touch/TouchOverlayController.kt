@@ -1,13 +1,15 @@
 package com.bermudasyndrome.android.touch
 
 import android.app.Activity
-import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.util.Log
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.TextView
+import com.bermudasyndrome.android.BermudaActivity
+import org.libsdl.app.SDLActivity
 
 class TouchOverlayController(
     private val filesDir: java.io.File,
@@ -24,7 +26,6 @@ class TouchOverlayController(
     private var containerHeight = 0
     private var saveDebounceRunnable: Runnable? = null
     private var schlossButton: TouchOverlayLockButtonView? = null
-    private var plusButton: TextView? = null
     private var gearButton: TouchOverlaySettingsButtonView? = null
     private var gridView: TouchOverlayGridView? = null
 
@@ -35,6 +36,12 @@ class TouchOverlayController(
         config = store.loadOrDefault()
         config = config!!.copy(layoutLocked = true)
 
+        // Sync persisted cheats and screen mode to native on startup
+        BermudaActivity.nativeSetCheat(0, config!!.cheatGodMode)
+        BermudaActivity.nativeSetCheat(1, config!!.cheatInfiniteAmmo)
+        BermudaActivity.nativeSetCheat(2, config!!.cheatAllWeapons)
+        BermudaActivity.nativeSetScreenMode(config!!.screenMode)
+
         val container = FrameLayout(activity).apply {
             isClickable = false; isFocusable = false
             clipChildren = false; clipToPadding = false
@@ -44,12 +51,15 @@ class TouchOverlayController(
         root.bringChildToFront(container)
         overlayContainer = container
 
+        container.setOnTouchListener { _, event -> handleGameCanvasTouch(event) }
+
         root.addOnLayoutChangeListener(layoutChangeListener)
         root.post {
             captureContainerSize()
             createGridView()
             createSystemButtons()
             createButtonViews()
+            syncGlobalConfigToButtonViews()
             updateSchlossButtonState()
         }
     }
@@ -80,6 +90,7 @@ class TouchOverlayController(
             captureContainerSize()
             updateGridViewState()
             createButtonViews()
+            syncGlobalConfigToButtonViews()
             updateButtonDraggable()
             updateSchlossButtonState()
         }
@@ -93,6 +104,7 @@ class TouchOverlayController(
             captureContainerSize()
             updateGridViewState()
             createButtonViews()
+            syncGlobalConfigToButtonViews()
             updateButtonDraggable()
             updateSchlossButtonState()
         }
@@ -164,96 +176,92 @@ class TouchOverlayController(
         }
         container.addView(schlossButton, bottomStartLayoutParams(0, SYSTEM_BUTTON_SIZE_DP.dpToPx()))
 
-        plusButton = createSystemButtonView("+").apply {
-            setOnClickListener { onPlusTapped() }
-            setOnLongClickListener { resetToDefaults(); true }
-            visibility = if (cfg.layoutLocked) View.GONE else View.VISIBLE
-        }
-        container.addView(plusButton, bottomStartLayoutParams(1, SYSTEM_BUTTON_SIZE_DP.dpToPx()))
-
         gearButton = TouchOverlaySettingsButtonView(activity).apply {
             setOnClickListener { onGearTapped() }
             isClickable = true; isFocusable = true
             visibility = if (cfg.layoutLocked) View.GONE else View.VISIBLE
         }
-        container.addView(gearButton, bottomStartLayoutParams(2, SYSTEM_BUTTON_SIZE_DP.dpToPx()))
+        container.addView(gearButton, bottomStartLayoutParams(1, SYSTEM_BUTTON_SIZE_DP.dpToPx()))
 
         ensureSystemButtonsOnTop()
     }
 
-    private fun createSystemButtonView(text: String): TextView =
-        TextView(activity).apply {
-            this.text = text; textSize = 18f; gravity = Gravity.CENTER
-            setTextColor(0xFFFFFFFF.toInt())
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE; cornerRadius = 12.dpToPx().toFloat()
-                setColor(0xAA111820.toInt()); setStroke(1.dpToPx(), 0x66FFFFFF)
-            }
-            isClickable = true; isFocusable = true
-        }
-
     private fun repositionSystemButtons() {
         schlossButton?.layoutParams = bottomStartLayoutParams(0, SYSTEM_BUTTON_SIZE_DP.dpToPx())
-        plusButton?.layoutParams = bottomStartLayoutParams(1, SYSTEM_BUTTON_SIZE_DP.dpToPx())
-        gearButton?.layoutParams = bottomStartLayoutParams(2, SYSTEM_BUTTON_SIZE_DP.dpToPx())
+        gearButton?.layoutParams = bottomStartLayoutParams(1, SYSTEM_BUTTON_SIZE_DP.dpToPx())
     }
 
     private fun removeSystemButtons() {
         schlossButton?.let { (it.parent as? ViewGroup)?.removeView(it) }
-        plusButton?.let { (it.parent as? ViewGroup)?.removeView(it) }
         gearButton?.let { (it.parent as? ViewGroup)?.removeView(it) }
-        schlossButton = null; plusButton = null; gearButton = null
+        schlossButton = null; gearButton = null
     }
 
     private fun updateSchlossButtonState() {
         val cfg = config ?: return
         schlossButton?.setLocked(cfg.layoutLocked)
-        plusButton?.visibility = if (cfg.layoutLocked) View.GONE else View.VISIBLE
         gearButton?.visibility = if (cfg.layoutLocked) View.GONE else View.VISIBLE
     }
 
-    private fun onPlusTapped() {
-        val cfg = config ?: return; val container = overlayContainer ?: return
-        if (containerWidth <= 0 || containerHeight <= 0) {
-            captureContainerSize()
-            if (containerWidth <= 0 || containerHeight <= 0) { Log.w(TAG, "Cannot create button: zero size"); return }
-        }
-        val newId = "button_${System.currentTimeMillis()}"
-        val baseConfig = TouchButtonConfig(id = newId, label = "", icon = null, shape = BUTTON_SHAPE_CIRCLE,
-            x = 0.45f, y = 0.75f, size = 0.090f, alpha = 0.45f, visible = true, actions = emptyList())
-        val tempConfig = TOUCH_BUTTON_PRESETS.first().applyTo(baseConfig)
-        val dialog = TouchOverlayEditDialog(context = activity, buttonConfig = tempConfig,
-            onSave = { addNewButton(it) }, onDelete = {})
-        dialog.show()
-    }
-
-    private fun addNewButton(buttonConfig: TouchButtonConfig) {
-        val cfg = config ?: return; val container = overlayContainer ?: return
-        val minDim = minOf(containerWidth, containerHeight)
-        val (bw, bh) = dimensionsFor(buttonConfig, minDim)
-        val leftPx = (buttonConfig.x * containerWidth).toInt().coerceIn(0, (containerWidth - bw).coerceAtLeast(0))
-        val topPx = (buttonConfig.y * containerHeight).toInt().coerceIn(0, (containerHeight - bh).coerceAtLeast(0))
-        val buttonView = TouchOverlayButtonView(container.context, buttonConfig, dispatcher,
-            { onButtonPositionChanged(it) }, { onButtonLongPress(it) }, draggable = !cfg.layoutLocked)
-        buttonView.alpha = buttonConfig.alpha
-        buttonView.setSnapGridSize(if (cfg.layoutLocked) 0 else gridSizePx())
-        buttonView.layoutParams = FrameLayout.LayoutParams(bw, bh).apply { leftMargin = leftPx; topMargin = topPx }
-        container.addView(buttonView); buttonViews.add(buttonView)
-        ensureSystemButtonsOnTop()
-        config = cfg.copy(buttons = cfg.buttons + buttonConfig)
-        saveConfig()
-        Log.i(TAG, "Created new button: ${buttonConfig.id}")
-    }
-
     private fun onGearTapped() {
-        val dialog = TouchOverlaySettingsDialog(context = activity,
-            onResetAll = { resetToDefaults() }, onDeleteAll = { deleteAllButtons() })
+        val cfg = config ?: return
+        val dialog = TouchOverlaySettingsDialog(
+            context = activity,
+            config = cfg,
+            onConfigChanged = { updated -> onConfigUpdated(updated) },
+            onResetAll = { resetToDefaults() },
+            onDeleteAll = { deleteAllButtons() }
+        )
         dialog.show()
+    }
+
+    private fun onConfigUpdated(updated: TouchOverlayConfig) {
+        config = updated
+        saveConfig()
+        syncGlobalConfigToButtonViews()
+    }
+
+    private fun syncGlobalConfigToButtonViews() {
+        val cfg = config ?: return
+        for (view in buttonViews) {
+            view.globalDpadDoubleTapRunEnabled = cfg.dpadDoubleTapRunEnabled
+        }
+    }
+
+    private fun handleGameCanvasTouch(event: MotionEvent): Boolean {
+        if (event.action == MotionEvent.ACTION_DOWN || event.action == MotionEvent.ACTION_UP) {
+            val x = event.x
+            val y = event.y
+            if (!isTouchOnAnyButton(x, y)) {
+                val action = if (event.action == MotionEvent.ACTION_DOWN) 0 else 1
+                SDLActivity.onNativeMouse(android.view.MotionEvent.BUTTON_PRIMARY, action, x, y, false)
+            }
+        }
+        return false
+    }
+
+    private fun isTouchOnAnyButton(x: Float, y: Float): Boolean {
+        for (view in buttonViews) {
+            if (x >= view.left.toFloat() && x <= view.right.toFloat() &&
+                y >= view.top.toFloat() && y <= view.bottom.toFloat()) {
+                return true
+            }
+        }
+        if (schlossButton != null) {
+            val v = schlossButton!!
+            if (x >= v.left.toFloat() && x <= v.right.toFloat() &&
+                y >= v.top.toFloat() && y <= v.bottom.toFloat()) return true
+        }
+        if (gearButton != null && gearButton!!.visibility == View.VISIBLE) {
+            val v = gearButton!!
+            if (x >= v.left.toFloat() && x <= v.right.toFloat() &&
+                y >= v.top.toFloat() && y <= v.bottom.toFloat()) return true
+        }
+        return false
     }
 
     private fun ensureSystemButtonsOnTop() {
         schlossButton?.let { overlayContainer?.bringChildToFront(it) }
-        plusButton?.let { overlayContainer?.bringChildToFront(it) }
         gearButton?.let { overlayContainer?.bringChildToFront(it) }
     }
 
@@ -281,8 +289,7 @@ class TouchOverlayController(
             buttonView.alpha = btnConfig.alpha
             buttonView.setSnapGridSize(if (cfg.layoutLocked) 0 else gridSizePx())
             val (bw, bh) = dimensionsFor(btnConfig, minDim)
-            val leftPx = (btnConfig.x * containerWidth).toInt().coerceIn(0, (containerWidth - bw).coerceAtLeast(0))
-            val topPx = (btnConfig.y * containerHeight).toInt().coerceIn(0, (containerHeight - bh).coerceAtLeast(0))
+            val (leftPx, topPx) = positionFor(btnConfig, bw, bh, minDim)
             buttonView.layoutParams = FrameLayout.LayoutParams(bw, bh).apply { leftMargin = leftPx; topMargin = topPx }
             container.addView(buttonView); buttonViews.add(buttonView)
         }
@@ -295,8 +302,7 @@ class TouchOverlayController(
         for (view in buttonViews) {
             val btnConfig = cfg.buttons.firstOrNull { it.id == view.config.id } ?: continue
             val (bw, bh) = dimensionsFor(btnConfig, minDim)
-            val leftPx = (btnConfig.x * containerWidth).toInt().coerceIn(0, (containerWidth - bw).coerceAtLeast(0))
-            val topPx = (btnConfig.y * containerHeight).toInt().coerceIn(0, (containerHeight - bh).coerceAtLeast(0))
+            val (leftPx, topPx) = positionFor(btnConfig, bw, bh, minDim)
             val lp = view.layoutParams as? FrameLayout.LayoutParams ?: continue
             lp.width = bw; lp.height = bh; lp.leftMargin = leftPx; lp.topMargin = topPx
             view.layoutParams = lp
@@ -319,8 +325,7 @@ class TouchOverlayController(
                 val preserved = if (captured != null) updated.copy(x = captured.first, y = captured.second) else updated
                 onButtonEditSaved(preserved)
             },
-            onDelete = { onButtonDeleted(it) },
-            showDpadSettings = btnConfig.actions.any { it.type == "dpad" })
+            onDelete = { onButtonDeleted(it) })
         dialog.show()
     }
 
@@ -332,8 +337,7 @@ class TouchOverlayController(
         view.updateConfig(updatedConfig)
         val minDim = minOf(containerWidth, containerHeight)
         val (bw, bh) = dimensionsFor(updatedConfig, minDim)
-        val leftPx = (updatedConfig.x * containerWidth).toInt().coerceIn(0, (containerWidth - bw).coerceAtLeast(0))
-        val topPx = (updatedConfig.y * containerHeight).toInt().coerceIn(0, (containerHeight - bh).coerceAtLeast(0))
+        val (leftPx, topPx) = positionFor(updatedConfig, bw, bh, minDim)
         val lp = view.layoutParams as? FrameLayout.LayoutParams ?: return
         lp.width = bw; lp.height = bh; lp.leftMargin = leftPx; lp.topMargin = topPx
         view.layoutParams = lp
@@ -355,7 +359,10 @@ class TouchOverlayController(
         if (containerWidth <= 0 || containerHeight <= 0) return
         val updatedButtons = cfg.buttons.map { btnConfig ->
             val view = buttonViews.firstOrNull { it.config.id == btnConfig.id }
-            if (view != null) { val (nx, ny) = view.getNormalizedPosition(containerWidth, containerHeight); btnConfig.copy(x = nx, y = ny) }
+            if (view != null) {
+                val (nx, ny) = view.getNormalizedPosition(containerWidth, containerHeight)
+                btnConfig.copy(x = nx, y = ny, anchorX = null, anchorY = null, offsetX = null, offsetY = null)
+            }
             else btnConfig
         }
         config = cfg.copy(buttons = updatedButtons)
@@ -396,6 +403,22 @@ class TouchOverlayController(
         val height = (btnConfig.size * minDim).toInt().coerceAtLeast(minPx)
         val width = if (btnConfig.shape == BUTTON_SHAPE_RECTANGLE) (height * RECTANGLE_WIDTH_FACTOR).toInt() else height
         return Pair(width, height)
+    }
+
+    private fun positionFor(btnConfig: TouchButtonConfig, bw: Int, bh: Int, minDim: Int): Pair<Int, Int> {
+        val offsetXPx = ((btnConfig.offsetX ?: 0f) * minDim).toInt()
+        val offsetYPx = ((btnConfig.offsetY ?: 0f) * minDim).toInt()
+        val left = when (btnConfig.anchorX) {
+            BUTTON_ANCHOR_START -> offsetXPx
+            BUTTON_ANCHOR_END -> containerWidth - bw - offsetXPx
+            else -> (btnConfig.x * containerWidth).toInt()
+        }.coerceIn(0, (containerWidth - bw).coerceAtLeast(0))
+        val top = when (btnConfig.anchorY) {
+            BUTTON_ANCHOR_TOP -> offsetYPx
+            BUTTON_ANCHOR_BOTTOM -> containerHeight - bh - offsetYPx
+            else -> (btnConfig.y * containerHeight).toInt()
+        }.coerceIn(0, (containerHeight - bh).coerceAtLeast(0))
+        return Pair(left, top)
     }
 
     private fun gridSizePx(): Int = GRID_SIZE_DP.dpToPx().coerceAtLeast(12)

@@ -5,6 +5,7 @@
 
 #include <sys/param.h>
 #include <unistd.h>
+#include <ctype.h>
 #include "avi_player.h"
 #include "decoder.h"
 #include "file.h"
@@ -18,10 +19,13 @@ static const char *kGameWindowTitleDemo = "Bermuda Syndrome Demo";
 
 static const char *kGameStateFileNameFormat = "%s/bermuda.%03d";
 
-Game::Game(SystemStub *stub, const char *dataPath, const char *savePath, const char *musicPath)
-	: _fs(dataPath), _stub(stub), _dataPath(dataPath), _savePath(savePath), _musicPath(musicPath) {
+Game::Game(SystemStub *stub, const char *dataPath, const char *savePath, const char *musicPath, const char *soundfontPath)
+	: _fs(dataPath), _stub(stub), _dataPath(dataPath), _savePath(savePath), _musicPath(musicPath), _soundfontPath(soundfontPath ? soundfontPath : "") {
 	_state = _nextState = -1;
 	_mixer = _stub->getMixer();
+	if (_soundfontPath[0]) {
+		_mixer->setSoundFont(_soundfontPath);
+	}
 	_stateSlot = kQuickSaveSlot;
 	_pendingLoadSlot = kQuickSaveSlot;
 	_menuSlotMode = 0;
@@ -31,6 +35,7 @@ Game::Game(SystemStub *stub, const char *dataPath, const char *savePath, const c
 	_floatingStatusTicks = 0;
 	_floatingStatusText[0] = 0;
 	_cheats = 0;
+	_screenMode = SCREEN_MODE_DEFAULT;
 	detectVersion();
 	detectTextCp949();
 	if (_textCp949) {
@@ -189,6 +194,14 @@ void Game::fini() {
 	_stub->destroy();
 }
 
+void Game::setCheatMask(uint32_t mask) {
+	_cheats = mask;
+}
+
+void Game::setScreenMode(int mode) {
+	_screenMode = mode;
+	_stub->setStretchGameplay(mode == SCREEN_MODE_16_9 && _state == kStateGame);
+}
 void Game::mainLoop() {
 	if (_nextState != _state) {
 		const int previousState = _state;
@@ -205,6 +218,11 @@ void Game::mainLoop() {
 			break;
 		}
 		_state = _nextState;
+		if (_screenMode == SCREEN_MODE_16_9) {
+			_stub->setStretchGameplay(_state == kStateGame);
+		} else {
+			_stub->setStretchGameplay(false);
+		}
 		// init
 		switch (_state) {
 		case kStateGame:
@@ -671,6 +689,13 @@ void Game::runObjectsScript() {
 		}
 		if (_cheats & kCheatNoHit) {
 			_varsTable[0] = 0;
+		}
+		if (_cheats & kCheatInfiniteAmmo) {
+			_varsTable[3] = 5;
+		}
+		if (_cheats & kCheatAllWeapons) {
+			_varsTable[1] = 2;
+			_varsTable[2] = 1;
 		}
 		if (_varsTable[0] >= 10 && !_gameOver) {
 			strcpy(_musicName, "..\\midi\\gameover.mid");
@@ -1197,10 +1222,38 @@ void Game::playMusic(const char *name) {
 			}
 		}
 	}
-	File *f = _fs.openFile(name, false);
+	// MIDI fallback: construct path from _musicPath (case-insensitive)
+	char midiFilePath[MAXPATHLEN];
+	const char *midiFileName = name + 8; // skip "..\\midi\\"
+	snprintf(midiFilePath, sizeof(midiFilePath), "%s/%s", _musicPath, midiFileName);
+	File *f = new File;
+	if (!f->open(midiFilePath)) {
+		// Try with .MID uppercase extension
+		char upperExt[MAXPATHLEN];
+		snprintf(upperExt, sizeof(upperExt), "%s/", _musicPath);
+		const char *dot = strrchr(midiFileName, '.');
+		if (dot) {
+			int baseLen = dot - midiFileName;
+			memcpy(upperExt + strlen(upperExt), midiFileName, baseLen);
+			strcpy(upperExt + strlen(upperExt), ".MID");
+			if (f->open(upperExt)) { } else {
+				// Try fully uppercase: TITLE.MID
+				char upperName[64];
+				int k = 0;
+				while (midiFileName[k] && k < 62) { upperName[k] = toupper((unsigned char)midiFileName[k]); k++; }
+				upperName[k] = 0;
+				snprintf(upperExt, sizeof(upperExt), "%s/%s", _musicPath, upperName);
+				if (!f->open(upperExt)) {
+					delete f; f = 0;
+				}
+			}
+		} else {
+			strncat(upperExt, midiFileName, sizeof(upperExt) - strlen(upperExt) - 1);
+		}
+	}
 	if (f) {
 		_mixer->playMusic(f, &_mixerMusicId);
-		_fs.closeFile(f);
+		delete f;
 	}
 }
 

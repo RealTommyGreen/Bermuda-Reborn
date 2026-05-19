@@ -20,6 +20,7 @@ struct Mixer {
 	virtual void open() = 0;
 	virtual void close() = 0;
 
+	virtual void setSoundFont(const char *path) {}
 	virtual void playSound(File *f, int *id) = 0;
 	virtual void playMusic(File *f, int *id) = 0;
 	virtual bool isSoundPlaying(int id) = 0;

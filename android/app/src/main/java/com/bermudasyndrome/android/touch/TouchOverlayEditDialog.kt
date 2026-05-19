@@ -19,8 +19,7 @@ class TouchOverlayEditDialog(
     private val context: Context,
     private val buttonConfig: TouchButtonConfig,
     private val onSave: (TouchButtonConfig) -> Unit,
-    private val onDelete: (String) -> Unit,
-    private val showDpadSettings: Boolean = false
+    private val onDelete: (String) -> Unit
 ) {
     private val presetOptions = TOUCH_BUTTON_PRESETS
     private val presetEntries = buildPresetEntries(presetOptions)
@@ -49,15 +48,6 @@ class TouchOverlayEditDialog(
         val presetSpinner = groupedPresetSpinner(
             presetEntries.indexOfFirst { it.preset?.id == selectedPreset.id }.takeIf { it >= 0 } ?: 1)
         val shapeSpinner = spinner(shapes.map { it.label }, shapes.indexOfFirst { it.value == buttonConfig.shape }.takeIf { it >= 0 } ?: 0)
-        val dpadRunCheckBox = CheckBox(context).apply {
-            text = "Double tap left/right to run"
-            textSize = 14f
-            setTextColor(TEXT)
-            buttonTintList = tint(ACCENT)
-            isChecked = buttonConfig.dpadDoubleTapRun
-        }
-        val dpadSettingsVisible = showDpadSettings && buttonConfig.actions.any { it.type == "dpad" }
-
         val sizeLabel = valueText()
         val sizeSeekBar = SeekBar(context).apply {
             max = sizeValues.size - 1; progress = findClosestIndex(sizeValues, buttonConfig.size)
@@ -77,10 +67,6 @@ class TouchOverlayEditDialog(
         container.addView(labeledField("Size", sliderRow(sizeSeekBar, sizeLabel)))
         container.addView(labeledField("Shape", shapeSpinner))
         container.addView(labeledField("Opacity", sliderRow(alphaSeekBar, alphaLabel)))
-        if (dpadSettingsVisible) {
-            container.addView(labeledField("D-Pad", dpadRunCheckBox))
-        }
-
         sizeLabel.text = sizeFormat(sizeValues[sizeSeekBar.progress])
         alphaLabel.text = alphaFormat(alphaValues[alphaSeekBar.progress])
         scrollView.addView(container)
@@ -94,7 +80,7 @@ class TouchOverlayEditDialog(
                     shape = shapes[shapeSpinner.selectedItemPosition.coerceIn(0, shapes.size - 1)].value ?: BUTTON_SHAPE_CIRCLE,
                     size = sizeValues[sizeSeekBar.progress],
                     alpha = alphaValues[alphaSeekBar.progress],
-                    dpadDoubleTapRun = dpadSettingsVisible && preset.action.type == "dpad" && dpadRunCheckBox.isChecked
+                    dpadDoubleTapRun = buttonConfig.dpadDoubleTapRun
                 )
                 onSave(updated)
             }

@@ -216,7 +216,9 @@ enum {
 };
 
 enum {
-	kCheatNoHit = 1 << 0
+	kCheatNoHit = 1 << 0,
+	kCheatInfiniteAmmo = 1 << 1,
+	kCheatAllWeapons = 1 << 2
 };
 
 static inline int getBitmapWidth(const uint8_t *p) {
@@ -264,7 +266,7 @@ struct Game {
 		NUM_DIALOG_ENTRIES = 40
 	};
 
-	Game(SystemStub *stub, const char *dataPath, const char *savePath, const char *musicPath);
+	Game(SystemStub *stub, const char *dataPath, const char *savePath, const char *musicPath, const char *soundfontPath);
 	~Game();
 
 	SceneObject *derefSceneObject(int i) {
@@ -309,6 +311,8 @@ struct Game {
 	void restart();
 	void init(bool fullscreen, int screenMode);
 	void fini();
+		void setCheatMask(uint32_t mask);
+		void setScreenMode(int mode);
 	void mainLoop();
 	void updateMouseButtonsPressed();
 	void updateKeysPressedTable();
@@ -478,7 +482,9 @@ struct Game {
 	const char *_dataPath;
 	const char *_savePath;
 	const char *_musicPath;
+	const char *_soundfontPath;
 	uint32_t _cheats;
+	int _screenMode;
 	int _stateSlot;
 	int _pendingLoadSlot;
 	int _menuSlotMode;

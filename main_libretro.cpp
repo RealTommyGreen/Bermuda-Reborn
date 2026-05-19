@@ -264,7 +264,7 @@ bool retro_load_game(const struct retro_game_info *info) {
 
 	g_dataPath = strdup(info->path);
 	const char *savePath = ".";
-	g_game = new Game(&g_stub, g_dataPath, savePath, g_dataPath);
+	g_game = new Game(&g_stub, g_dataPath, savePath, g_dataPath, "");
 	g_game->init(false, SCREEN_MODE_DEFAULT);
 
 	return true;

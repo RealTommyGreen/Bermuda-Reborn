@@ -61,6 +61,7 @@ class TouchOverlayButtonView(
     private var lastHorizontalDpadTapTime = 0L
     private var dpadRunActive = false
     private var snapGridSizePx: Int = 0
+    var globalDpadDoubleTapRunEnabled: Boolean = true
 
     init { updateHoldMode() }
 
@@ -241,7 +242,7 @@ class TouchOverlayButtonView(
     }
 
     private fun maybeActivateDpadRun(direction: String) {
-        if (!buttonConfig.dpadDoubleTapRun || (direction != "LEFT" && direction != "RIGHT")) return
+        if (!globalDpadDoubleTapRunEnabled || (direction != "LEFT" && direction != "RIGHT")) return
 
         val now = System.currentTimeMillis()
         if (lastHorizontalDpadTapDirection == direction && now - lastHorizontalDpadTapTime <= DPAD_DOUBLE_TAP_RUN_MS) {

@@ -60,6 +60,13 @@ class TouchButtonStore(private val filesDir: File) {
     )
 
     private fun migrateConfig(config: TouchOverlayConfig): TouchOverlayConfig {
+        if (config.schemaVersion < 7) {
+            return config.copy(
+                schemaVersion = TOUCH_OVERLAY_CONFIG_VERSION,
+                layoutLocked = true,
+                buttons = defaultButtons()
+            )
+        }
         val updatedButtons = config.buttons.map { button ->
             when (button.id) {
                 "btn_use" -> button.copy(label = "Use", icon = "use")

@@ -45,6 +45,7 @@ struct SystemStub_SDL : SystemStub {
 	int _iconSize;
 	int _screenshot;
 	bool _widescreen;
+	bool _stretchGameplay;
 
 	SystemStub_SDL() :
 #if SDL_VERSION_ATLEAST(2, 0, 0)
@@ -54,7 +55,8 @@ struct SystemStub_SDL : SystemStub {
 #endif
 		_fmt(0),
 		_gameBuffer(0), _videoBuffer(0),
-		_iconData(0), _iconSize(0) {
+		_iconData(0), _iconSize(0),
+		_stretchGameplay(false) {
 		_screenshot = 1;
 		if (0) {
 			_mixer = Mixer_SDL_create(this);
@@ -89,6 +91,7 @@ struct SystemStub_SDL : SystemStub {
 	virtual void stopAudio();
 	virtual int getOutputSampleRate();
 	virtual Mixer *getMixer() { return _mixer; }
+	virtual void setStretchGameplay(bool stretch) { _stretchGameplay = stretch; }
 
 	void updateMousePosition(int x, int y);
 	void handleEvent(const SDL_Event &ev, bool &paused);
@@ -501,7 +504,14 @@ void SystemStub_SDL::updateScreen() {
 	// game graphics
 	SDL_UpdateTexture(_gameTexture, NULL, _gameBuffer, _screenW * sizeof(uint32_t));
 #ifdef __ANDROID__
-	SDL_Rect r = getAndroidAspectRect(_screenW, _screenH);
+	SDL_Rect r;
+	if (_stretchGameplay) {
+		getAndroidOutputSize(&r.w, &r.h);
+		r.x = 0;
+		r.y = 0;
+	} else {
+		r = getAndroidAspectRect(_screenW, _screenH);
+	}
 #else
 	SDL_Rect r;
 	r.w = _screenW;
@@ -640,7 +650,14 @@ void SystemStub_SDL::processEvents() {
 
 void SystemStub_SDL::updateMousePosition(int x, int y) {
 #if SDL_VERSION_ATLEAST(2, 0, 0) && defined(__ANDROID__)
-	SDL_Rect r = getAndroidAspectRect(_screenW, _screenH);
+	SDL_Rect r;
+	if (_stretchGameplay) {
+		getAndroidOutputSize(&r.w, &r.h);
+		r.x = 0;
+		r.y = 0;
+	} else {
+		r = getAndroidAspectRect(_screenW, _screenH);
+	}
 	x = (x - r.x) * _screenW / r.w;
 	y = (y - r.y) * _screenH / r.h;
 #else

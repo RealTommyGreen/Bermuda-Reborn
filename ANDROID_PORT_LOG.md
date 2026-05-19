@@ -1648,3 +1648,10 @@ Enthalten:
 - Keine `assets/BERMUDA/*` im APK.
 - Enthalten: App-Icon, Launcher-Hintergrund (center-crop), SoundFont, Touch-Overlay, Cheats, Screen-Mode.
 - Projektstatus: Feature Complete.
+
+---
+
+## Post-Feature-Complete TODOs
+
+- Controller-Support pruefen und finalisieren.
+- App-Icon kleiner skalieren, damit es im Launcher nicht zu gross wirkt.

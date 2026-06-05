@@ -93,6 +93,17 @@
 - Game logic tweaks across `game.cpp`, `menu.cpp`, `bag.cpp`, `dialogue.cpp`, `mixer_soft.cpp`, `systemstub_sdl.cpp`
 - Project declared functionally complete
 
+## Phase 12: SVG touch button icons (2026-06-06)
+
+- 11 custom SVG icons from `Bermuda_Syndrome_Icons/` (BS_Jump, BS_Run, BS_Shoot, BS_Use, BS_OK, BS_Cancel, BS_Status, BS_Menu, BS_Save, BS_Load, BS_Inventory)
+- `SvgIconManager.kt` — canonical 512×512 bitmap pipeline with `androidsvg:1.4`, white `PorterDuffColorFilter(SRC_IN)`, JSON-driven config from `iconset.json` + `iconmappings.json`
+- `TouchOverlayButtonView.kt` — full geometry rewrite per Overlay Icon Manual: `buttonHeight = minOf(h, w / 1.8f)`, `computeOuterShapeBounds()`, `computeIconShapeBounds()` with 0.85× circle factor, DPAD special case without shape background
+- Default button sizes scaled 1.6× (0.103→0.165, 0.115→0.184) to compensate for new buttonHeight-based geometry
+- 11 SVG resources + `iconset.json` + `iconmappings.json` in `res/raw/`
+- OK/Cancel icons included for future menu overlay system
+
+---
+
 ---
 
 ## Build (Release APK)
@@ -125,7 +136,8 @@ android/app/src/main/java/com/bermuda/reborn/
     ├── TouchButtonStore.kt        # JSON persistence
     ├── TouchInputDispatcher.kt    # Action → Android KeyEvent
     ├── ControllerConfigStore.kt   # Controller mapping persistence
-    └── ControllerMappingDialog.kt # Controller button remap UI
+    ├── ControllerMappingDialog.kt # Controller button remap UI
+    └── SvgIconManager.kt          # SVG icon loading, caching, rendering
 ```
 
 ## Remaining Risks

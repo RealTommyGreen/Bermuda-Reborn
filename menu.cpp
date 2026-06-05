@@ -77,6 +77,9 @@ void Game::initMenu(int num) {
 	_menuObjectCount = _sceneObjectsCount;
 	_menuObjectMotion = _sceneObjectMotionsCount;
 	_menuObjectFrames = _sceneObjectFramesCount;
+	_menuLastMouseX = _stub->_pi.mouseX;
+	_menuLastMouseY = _stub->_pi.mouseY;
+	_menuMouseTrackingInitialized = true;
 	const int animationsCount = _animationsCount;
 	(void)animationsCount;
 	const int state = _loadDataState;
@@ -116,16 +119,25 @@ void Game::handleMenu() {
 	}
 	const int xCursor = _stub->_pi.mouseX;
 	const int yCursor = _stub->_pi.mouseY;
-	for (int frame = 0; frame < _sceneObjectMotionsTable[_menuObjectMotion].count; ++frame) {
-		SceneObjectFrame *sof = &_sceneObjectFramesTable[_sceneObjectMotionsTable[_menuObjectMotion].firstFrameIndex + frame];
-		if (xCursor >= sof->hdr.xPos && xCursor < sof->hdr.xPos + sof->hdr.w && yCursor >= sof->hdr.yPos && yCursor < sof->hdr.yPos + sof->hdr.h) {
-			_menuHighlight = frame;
-			if (_stub->_pi.leftMouseButton) {
-				_stub->_pi.leftMouseButton = false;
-				_menuOption = frame;
+	const bool mouseClicked = _stub->_pi.leftMouseButton;
+	const bool mouseMoved = !_menuMouseTrackingInitialized || xCursor != _menuLastMouseX || yCursor != _menuLastMouseY;
+	if (mouseMoved || mouseClicked) {
+		for (int frame = 0; frame < _sceneObjectMotionsTable[_menuObjectMotion].count; ++frame) {
+			SceneObjectFrame *sof = &_sceneObjectFramesTable[_sceneObjectMotionsTable[_menuObjectMotion].firstFrameIndex + frame];
+			if (xCursor >= sof->hdr.xPos && xCursor < sof->hdr.xPos + sof->hdr.w && yCursor >= sof->hdr.yPos && yCursor < sof->hdr.yPos + sof->hdr.h) {
+				_menuHighlight = frame;
+				if (mouseClicked) {
+					_menuOption = frame;
+				}
 			}
 		}
 	}
+	if (mouseClicked) {
+		_stub->_pi.leftMouseButton = false;
+	}
+	_menuLastMouseX = xCursor;
+	_menuLastMouseY = yCursor;
+	_menuMouseTrackingInitialized = true;
 
 	if (_state == kStateMenu1) {
 		// vertical layout

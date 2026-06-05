@@ -350,8 +350,9 @@ void AVI_Player::play(File *f) {
 		for (int i = 0; i < _demux._frames; ++i) {
 			uint32_t nextFrameTimeStamp = _stub->getTimeStamp() + 1000 / _demux._frameRate;
 			_stub->processEvents();
-			if (_stub->_quit || _stub->_pi.enter) {
+			if (_stub->_quit || _stub->_pi.enter || _stub->_pi.leftMouseButton) {
 				_stub->_pi.enter = false;
+				_stub->_pi.leftMouseButton = false;
 				break;
 			}
 			AVI_Chunk chunk;

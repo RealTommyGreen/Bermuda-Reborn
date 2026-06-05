@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "BermudaSyndrome"
+rootProject.name = "BermudaReborn"
 include(":app")

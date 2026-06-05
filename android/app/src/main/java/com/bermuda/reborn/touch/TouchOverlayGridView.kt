@@ -1,4 +1,4 @@
-package com.bermudasyndrome.android.touch
+package com.bermuda.reborn.touch
 
 import android.content.Context
 import android.graphics.Canvas

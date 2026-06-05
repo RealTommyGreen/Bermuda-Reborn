@@ -1,8 +1,9 @@
-package com.bermudasyndrome.android.touch
+package com.bermuda.reborn.touch
 
 import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
+import com.bermuda.reborn.BermudaActivity
 import org.libsdl.app.SDLActivity
 
 class TouchInputDispatcher {
@@ -10,9 +11,22 @@ class TouchInputDispatcher {
     private val heldMouseButtons = mutableSetOf<Int>()
     private val heldKeyCodes = mutableSetOf<Int>()
     private val heldComboKeys = mutableMapOf<String, MutableList<Int>>()
+    private val heldContextualButtonKeys = mutableMapOf<String, Int>()
     private var heldDpadDirection: String? = null
 
     fun performAction(action: TouchButtonAction, pressed: Boolean) {
+        performButtonAction(null, action, pressed)
+    }
+
+    fun performButtonAction(buttonId: String?, action: TouchButtonAction, pressed: Boolean) {
+        if (buttonId != null && action.type == "key") {
+            val contextualKeyCode = contextualKeyCode(buttonId, pressed)
+            if (contextualKeyCode != null) {
+                performRawKeyCode(contextualKeyCode, pressed)
+                return
+            }
+        }
+
         when (action.type) {
             "mouse_button" -> dispatchMouseAction(action, pressed)
             "key" -> dispatchKeyAction(action, pressed)
@@ -36,6 +50,12 @@ class TouchInputDispatcher {
             }
         }
         heldComboKeys.clear()
+
+        heldContextualButtonKeys.values.toList().forEach { keyCode ->
+            SDLActivity.onNativeKeyUp(keyCode)
+            heldKeyCodes.remove(keyCode)
+        }
+        heldContextualButtonKeys.clear()
 
         heldKeyCodes.toList().forEach { keyCode ->
             SDLActivity.onNativeKeyUp(keyCode)
@@ -74,6 +94,10 @@ class TouchInputDispatcher {
             Log.w(TAG, "Unknown key name: $keyName")
             return
         }
+        performRawKeyCode(keyCode, pressed)
+    }
+
+    private fun performRawKeyCode(keyCode: Int, pressed: Boolean) {
         if (pressed) {
             if (!heldKeyCodes.contains(keyCode)) {
                 SDLActivity.onNativeKeyDown(keyCode)
@@ -83,6 +107,31 @@ class TouchInputDispatcher {
             SDLActivity.onNativeKeyUp(keyCode)
             heldKeyCodes.remove(keyCode)
         }
+    }
+
+    private fun contextualKeyCode(buttonId: String, pressed: Boolean): Int? {
+        if (!pressed) {
+            return heldContextualButtonKeys.remove(buttonId)
+        }
+
+        val context = try {
+            BermudaActivity.nativeGetTouchInputContext()
+        } catch (e: UnsatisfiedLinkError) {
+            TOUCH_CONTEXT_GAMEPLAY
+        }
+
+        val keyCode = when {
+            buttonId == "btn_jump" && (context == TOUCH_CONTEXT_CONFIRM || context == TOUCH_CONTEXT_MENU) ->
+                KeyEvent.KEYCODE_ENTER
+            buttonId == "btn_weapon" && context == TOUCH_CONTEXT_MENU ->
+                KeyEvent.KEYCODE_ESCAPE
+            else -> null
+        }
+
+        if (keyCode != null) {
+            heldContextualButtonKeys[buttonId] = keyCode
+        }
+        return keyCode
     }
 
     private fun dispatchMouseAction(action: TouchButtonAction, pressed: Boolean) {
@@ -207,6 +256,9 @@ class TouchInputDispatcher {
         private const val MAX_COMBO_KEYS = 3
         private const val ACTION_DOWN = 0
         private const val ACTION_UP = 1
+        private const val TOUCH_CONTEXT_GAMEPLAY = 0
+        private const val TOUCH_CONTEXT_CONFIRM = 1
+        private const val TOUCH_CONTEXT_MENU = 2
 
         fun toMouseButton(name: String?): Int = when (name?.lowercase()) {
             "right" -> MotionEvent.BUTTON_SECONDARY

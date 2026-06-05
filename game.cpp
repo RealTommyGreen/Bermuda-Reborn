@@ -30,12 +30,16 @@ Game::Game(SystemStub *stub, const char *dataPath, const char *savePath, const c
 	_pendingLoadSlot = kQuickSaveSlot;
 	_menuSlotMode = 0;
 	_menuSlotSelection = 0;
+	_menuLastMouseX = 0;
+	_menuLastMouseY = 0;
+	_menuMouseTrackingInitialized = false;
 	memset(_saveThumbnail, 0, sizeof(_saveThumbnail));
 	memset(_saveThumbnailPalette, 0, sizeof(_saveThumbnailPalette));
 	_floatingStatusTicks = 0;
 	_floatingStatusText[0] = 0;
 	_cheats = 0;
 	_screenMode = SCREEN_MODE_DEFAULT;
+	_touchInventoryEnabled = true;
 	detectVersion();
 	detectTextCp949();
 	if (_textCp949) {
@@ -107,6 +111,7 @@ void Game::restart() {
 
 	_lastDialogueEndedId = 0;
 	_dialogueEndedFlag = 0;
+	_dialogueInputIgnoreFrames = 0;
 	_loadDialogueDataState = 0;
 
 	memset(_defaultVarsTable, 0, sizeof(_defaultVarsTable));
@@ -202,6 +207,11 @@ void Game::setScreenMode(int mode) {
 	_screenMode = mode;
 	_stub->setStretchGameplay(mode == SCREEN_MODE_16_9 && _state == kStateGame);
 }
+
+void Game::setTouchInventoryEnabled(bool enabled) {
+	_touchInventoryEnabled = enabled;
+}
+
 void Game::mainLoop() {
 	if (_nextState != _state) {
 		const int previousState = _state;
@@ -319,8 +329,9 @@ void Game::mainLoop() {
 		}
 		break;
 	case kStateBitmap:
-		if (_stub->_pi.enter) {
+		if (_stub->_pi.enter || _stub->_pi.leftMouseButton) {
 			_stub->_pi.enter = false;
+			_stub->_pi.leftMouseButton = false;
 			playVideo("DATA/INTRO.AVI");
 			_nextState = kStateGame;
 		}
@@ -389,6 +400,24 @@ void Game::updateMouseButtonsPressed() {
 
 void Game::updateKeysPressedTable() {
 	debug(DBG_GAME, "Game::updateKeysPressedTable()");
+	if (_touchInventoryEnabled && _stub->_pi.leftMouseButton &&
+		_varsTable[0] < 10 && _loadDataState == 2 && _sceneNumber > -1000) {
+		const int topLeftHotspotSize = 64;
+		bool openInventory = _stub->_pi.mouseX >= 0 && _stub->_pi.mouseX < topLeftHotspotSize &&
+			_stub->_pi.mouseY >= 0 && _stub->_pi.mouseY < topLeftHotspotSize;
+		if (!openInventory && _currentBagObject >= 0 && _currentBagObject < _bagObjectsCount && _currentBagAction == kActionUseObject) {
+			const int iconW = getBitmapWidth(_iconBackgroundImage);
+			const int iconH = getBitmapHeight(_iconBackgroundImage);
+			const int iconX = _bagPosX;
+			const int iconY = _bitmapBuffer1.h + 1 - _bagPosY - iconH;
+			openInventory = _stub->_pi.mouseX >= iconX && _stub->_pi.mouseX < iconX + iconW &&
+				_stub->_pi.mouseY >= iconY && _stub->_pi.mouseY < iconY + iconH;
+		}
+		if (openInventory) {
+			_stub->_pi.leftMouseButton = false;
+			_stub->_pi.tab = true;
+		}
+	}
 	_keysPressed[13] = _stub->_pi.enter ? 1 : 0;
 	_keysPressed[16] = _stub->_pi.shift ? 1 : 0;
 	_keysPressed[32] = _stub->_pi.space ? 1 : 0;
@@ -691,7 +720,7 @@ void Game::runObjectsScript() {
 			_varsTable[0] = 0;
 		}
 		if (_cheats & kCheatInfiniteAmmo) {
-			_varsTable[3] = 5;
+			_varsTable[3] = 4;
 		}
 		if (_cheats & kCheatAllWeapons) {
 			_varsTable[1] = 2;
@@ -1162,7 +1191,9 @@ void Game::playVideo(const char *name) {
 			_stub->clearWidescreen();
 			_stub->updateScreen();
 			AVI_Player player(_mixer, _stub);
+			_stub->setVideoPlaybackActive(true);
 			player.play(&f);
+			_stub->setVideoPlaybackActive(false);
 		}
 		free(filePath);
 	}

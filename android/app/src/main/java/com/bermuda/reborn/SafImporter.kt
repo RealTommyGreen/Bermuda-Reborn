@@ -1,4 +1,4 @@
-package com.bermudasyndrome.android
+package com.bermuda.reborn
 
 import android.content.Context
 import android.net.Uri

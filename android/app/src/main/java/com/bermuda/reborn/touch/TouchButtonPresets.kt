@@ -1,4 +1,4 @@
-package com.bermudasyndrome.android.touch
+package com.bermuda.reborn.touch
 
 data class TouchButtonPreset(
     val id: String,

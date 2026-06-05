@@ -1,9 +1,14 @@
-package com.bermudasyndrome.android
+package com.bermuda.reborn
 
 import android.os.Bundle
 import android.util.Log
 import android.view.ViewGroup
-import com.bermudasyndrome.android.touch.TouchOverlayController
+import com.bermuda.reborn.touch.ControllerConfig
+import com.bermuda.reborn.touch.ControllerConfigStore
+import com.bermuda.reborn.touch.TouchButtonStore
+import com.bermuda.reborn.touch.TouchOverlayController
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.libsdl.app.SDLActivity
 import java.io.File
 
@@ -18,12 +23,34 @@ class BermudaActivity : SDLActivity() {
 
         @JvmStatic
         external fun nativeSetScreenMode(mode: Int)
+
+        @JvmStatic
+        external fun nativeSetControllerConfig(enabled: Boolean, mapping: String, dpadDoubleTapRunEnabled: Boolean)
+
+        @JvmStatic
+        external fun nativeSetTouchInventoryEnabled(enabled: Boolean)
+
+        @JvmStatic
+        external fun nativeGetTouchInputContext(): Int
     }
 
     private var touchOverlayController: TouchOverlayController? = null
+    private var controllerEnabled: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        controllerEnabled = intent.getBooleanExtra("controller_enabled", false)
+        Log.i(TAG, "Controller enabled: $controllerEnabled")
+
+        val controllerStore = ControllerConfigStore(filesDir)
+        val controllerConfig: ControllerConfig = controllerStore.loadOrDefault()
+        val mappingJson = Json.encodeToString(controllerConfig.mapping)
+        val touchStore = TouchButtonStore(filesDir)
+        val touchConfig = touchStore.loadOrDefault()
+        Log.i(TAG, "Controller config loaded, mapping: $mappingJson, dpadRun=${touchConfig.dpadDoubleTapRunEnabled}")
+        nativeSetControllerConfig(controllerEnabled, mappingJson, touchConfig.dpadDoubleTapRunEnabled)
+        nativeSetTouchInventoryEnabled(touchConfig.touchInventoryEnabled)
 
         if (!TOUCH_OVERLAY_ENABLED) {
             Log.i(TAG, "Touch overlay disabled for startup crash isolation")
@@ -32,7 +59,7 @@ class BermudaActivity : SDLActivity() {
 
         val root = getContentView() as? ViewGroup
         if (root != null) {
-            touchOverlayController = TouchOverlayController(filesDir, this, root)
+            touchOverlayController = TouchOverlayController(filesDir, this, root, controllerEnabled, controllerConfig)
             touchOverlayController?.attach()
         } else {
             Log.w(TAG, "SDL content view is not available; touch overlay disabled")

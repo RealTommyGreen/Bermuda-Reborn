@@ -170,11 +170,22 @@ void Game::initDialogue() {
 	_stub->_pi.dirMask = 0;
 	_stub->_pi.escape = false;
 	_stub->_pi.enter = false;
+	_stub->_pi.leftMouseButton = false;
+	_stub->_pi.rightMouseButton = false;
+	_dialogueInputIgnoreFrames = 3;
 }
 
 void Game::handleDialogue() {
 	debug(DBG_DIALOGUE, "Game::handleDialogue()");
 
+		if (_dialogueInputIgnoreFrames > 0) {
+			--_dialogueInputIgnoreFrames;
+			_stub->_pi.dirMask = 0;
+			_stub->_pi.escape = false;
+			_stub->_pi.enter = false;
+			_stub->_pi.leftMouseButton = false;
+			_stub->_pi.rightMouseButton = false;
+		}
 		if (_stub->_pi.dirMask & PlayerInput::DIR_DOWN) {
 			_stub->_pi.dirMask &= ~PlayerInput::DIR_DOWN;
 			if (_dialogueChoiceSelected == 0 && _dialogueSpeechIndex < _dialogueChoiceCounter - 1) {
@@ -194,7 +205,7 @@ void Game::handleDialogue() {
 		}
 		if (_stub->_pi.enter) {
 			_stub->_pi.enter = false;
-			if (_dialogueChoiceCounter > 1 && _dialogueChoiceSelected == 0) {
+			if (_dialogueChoiceSelected == 0) {
 				win16_sndPlaySound(3, _dialogueChoiceSpeechSoundFile[_dialogueSpeechIndex]);
 				_dialogueChoiceSelected = 1;
 			} else {
@@ -286,7 +297,7 @@ void Game::setupDialog(const char *dialogId) {
 	// only one choice, play the speech directly
 	if (_dialogueChoiceCounter == 1) {
 		win16_sndPlaySound(3, _dialogueChoiceSpeechSoundFile[_dialogueSpeechIndex]);
-		_dialogueChoiceSelected = 1;
+		_dialogueChoiceSelected = win16_sndPlaySound(22) == 0 ? 1 : 0;
 	}
 }
 

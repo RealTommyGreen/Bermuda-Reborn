@@ -11,13 +11,95 @@
 #include "scaler.h"
 #include "screenshot.h"
 #include "systemstub.h"
+#include <cstring>
+#include <cstdlib>
 
 enum {
 	kSoundSampleRate = 22050,
 	kSoundSampleSize = 4096,
 	kVideoSurfaceDepth = 32,
 	kJoystickCommitValue = 16384,
+	kDoubleTapWindowMs = 280,
 };
+
+// Set by android_main.cpp after Game::init so menu context detection works.
+extern int *g_gameStatePtr;
+
+// Controller action names matching the Android-side ControllerConfig actions.
+enum ControllerAction {
+	kActionJump,
+	kActionRun,
+	kActionWeapon,
+	kActionUse,
+	kActionMenu,
+	kActionInventory,
+	kActionQuickLoad,
+	kActionQuickSave,
+	kActionStatus,
+	kActionCount
+};
+
+static const char *kActionNames[kActionCount] = {
+	"jump", "run", "weapon", "use", "menu", "inventory", "quick_load", "quick_save", "status"
+};
+
+static int actionIndexByName(const char *name) {
+	for (int i = 0; i < kActionCount; ++i) {
+		if (strcmp(name, kActionNames[i]) == 0) return i;
+	}
+	return -1;
+}
+
+static SDL_GameControllerButton actionToButton[kActionCount] = {
+	SDL_CONTROLLER_BUTTON_A,       // jump
+	SDL_CONTROLLER_BUTTON_X,       // run
+	SDL_CONTROLLER_BUTTON_B,       // weapon
+	SDL_CONTROLLER_BUTTON_Y,       // use
+	SDL_CONTROLLER_BUTTON_START,   // menu
+	SDL_CONTROLLER_BUTTON_BACK,    // inventory
+	SDL_CONTROLLER_BUTTON_LEFTSHOULDER,  // quick_load
+	SDL_CONTROLLER_BUTTON_RIGHTSHOULDER, // quick_save
+	SDL_CONTROLLER_BUTTON_LEFTSTICK,     // status
+};
+
+static SDL_GameControllerButton buttonByName(const char *name) {
+	if (strcmp(name, "A") == 0) return SDL_CONTROLLER_BUTTON_A;
+	if (strcmp(name, "B") == 0) return SDL_CONTROLLER_BUTTON_B;
+	if (strcmp(name, "X") == 0) return SDL_CONTROLLER_BUTTON_X;
+	if (strcmp(name, "Y") == 0) return SDL_CONTROLLER_BUTTON_Y;
+	if (strcmp(name, "START") == 0) return SDL_CONTROLLER_BUTTON_START;
+	if (strcmp(name, "SELECT") == 0) return SDL_CONTROLLER_BUTTON_BACK;
+	if (strcmp(name, "L1") == 0) return SDL_CONTROLLER_BUTTON_LEFTSHOULDER;
+	if (strcmp(name, "R1") == 0) return SDL_CONTROLLER_BUTTON_RIGHTSHOULDER;
+	if (strcmp(name, "L3") == 0) return SDL_CONTROLLER_BUTTON_LEFTSTICK;
+	return SDL_CONTROLLER_BUTTON_INVALID;
+}
+
+// Game states (mirrored from game.h so we don't need the full header).
+enum {
+	kStGame    = 1,  // kStateGame
+	kStBag     = 2,  // kStateBag
+	kStDialogue = 3, // kStateDialogue
+	kStBitmap  = 4,  // kStateBitmap
+	kStMenu1   = 5,  // kStateMenu1
+	kStMenu2   = 6,  // kStateMenu2
+};
+
+static bool isMenuState() {
+	if (!g_gameStatePtr) return false;
+	int s = *g_gameStatePtr;
+	return s == kStMenu1 || s == kStMenu2;
+}
+
+static bool isDialogueState() {
+	if (!g_gameStatePtr) return false;
+	return *g_gameStatePtr == kStDialogue;
+}
+
+static bool isBitmapState() {
+	if (!g_gameStatePtr) return false;
+	return *g_gameStatePtr == kStBitmap;
+}
 
 struct SystemStub_SDL : SystemStub {
 	Mixer *_mixer;
@@ -46,6 +128,13 @@ struct SystemStub_SDL : SystemStub {
 	int _screenshot;
 	bool _widescreen;
 	bool _stretchGameplay;
+	bool _controllerEnabled;
+	bool _dpadDoubleTapRunEnabled;
+	bool _controllerVideoMode;
+	uint32_t _lastDpadLeftTime;
+	uint32_t _lastDpadRightTime;
+	bool _dpadLeftWasDouble;
+	bool _dpadRightWasDouble;
 
 	SystemStub_SDL() :
 #if SDL_VERSION_ATLEAST(2, 0, 0)
@@ -56,7 +145,14 @@ struct SystemStub_SDL : SystemStub {
 		_fmt(0),
 		_gameBuffer(0), _videoBuffer(0),
 		_iconData(0), _iconSize(0),
-		_stretchGameplay(false) {
+		_stretchGameplay(false),
+		_controllerEnabled(false),
+		_dpadDoubleTapRunEnabled(false),
+		_controllerVideoMode(false),
+		_lastDpadLeftTime(0),
+		_lastDpadRightTime(0),
+		_dpadLeftWasDouble(false),
+		_dpadRightWasDouble(false) {
 		_screenshot = 1;
 		if (0) {
 			_mixer = Mixer_SDL_create(this);
@@ -92,9 +188,19 @@ struct SystemStub_SDL : SystemStub {
 	virtual int getOutputSampleRate();
 	virtual Mixer *getMixer() { return _mixer; }
 	virtual void setStretchGameplay(bool stretch) { _stretchGameplay = stretch; }
+	virtual void setVideoPlaybackActive(bool active) { _controllerVideoMode = active; }
+	virtual int getTouchInputContext() const {
+		if (_controllerVideoMode || isBitmapState()) return TOUCH_INPUT_CONTEXT_CONFIRM;
+		if (isMenuState() || isDialogueState()) return TOUCH_INPUT_CONTEXT_MENU;
+		return TOUCH_INPUT_CONTEXT_GAMEPLAY;
+	}
 
+	void setControllerConfig(bool enabled, const char *mappingJson, bool dpadDoubleTapRun);
 	void updateMousePosition(int x, int y);
 	void handleEvent(const SDL_Event &ev, bool &paused);
+	void handleControllerButton(const SDL_Event &ev);
+	void handleControllerAxis(const SDL_Event &ev);
+	void applyAction(int action, bool pressed);
 	void setFullscreen(bool fullscreen);
 #if SDL_VERSION_ATLEAST(2, 0, 0)
 	void getAndroidOutputSize(int *w, int *h) const;
@@ -113,6 +219,246 @@ static int eventHandler(void *userdata, SDL_Event *ev) {
 	return 0;
 }
 #endif
+
+// ---- Controller config parser ----
+// Expects a JSON object like {"A":"jump","X":"run",...}
+// This is a minimal zero-allocation parser that handles the exact format produced by kotlinx.serialization.
+void SystemStub_SDL::setControllerConfig(bool enabled, const char *mappingJson, bool dpadDoubleTapRun) {
+	_controllerEnabled = enabled;
+	_dpadDoubleTapRunEnabled = dpadDoubleTapRun;
+	if (!enabled || !mappingJson || !mappingJson[0]) {
+		_dpadLeftWasDouble = false;
+		_dpadRightWasDouble = false;
+		return;
+	}
+
+	// Reset to current defaults
+	// parse top-level JSON object: {"key":"value",...}
+	const char *p = mappingJson;
+	while (*p && *p != '{') ++p;
+	if (*p != '{') return;
+	++p;
+
+	while (*p) {
+		while (*p == ' ' || *p == '\n' || *p == '\t' || *p == '\r' || *p == ',') ++p;
+		if (*p == '}') break;
+		if (*p != '"') { ++p; continue; }
+		++p;
+		const char *btnStart = p;
+		while (*p && *p != '"') ++p;
+		int btnLen = p - btnStart;
+		if (*p != '"') break;
+		++p;
+		while (*p && *p != ':') ++p;
+		if (*p != ':') break;
+		++p;
+		while (*p == ' ' || *p == '\n' || *p == '\t' || *p == '\r') ++p;
+		if (*p != '"') { ++p; continue; }
+		++p;
+		const char *actStart = p;
+		while (*p && *p != '"') ++p;
+		int actLen = p - actStart;
+		if (*p != '"') break;
+		++p;
+
+		char btnName[32] = {0};
+		char actName[32] = {0};
+		int bl = btnLen < 31 ? btnLen : 31;
+		int al = actLen < 31 ? actLen : 31;
+		memcpy(btnName, btnStart, bl);
+		memcpy(actName, actStart, al);
+
+		SDL_GameControllerButton btn = buttonByName(btnName);
+		int actIdx = actionIndexByName(actName);
+		if (btn != SDL_CONTROLLER_BUTTON_INVALID && actIdx >= 0) {
+			actionToButton[actIdx] = btn;
+		}
+	}
+}
+
+// ---- Action application ----
+// Maps a gameplay action to PlayerInput fields according to the plan:
+//   jump -> UP       run -> SHIFT    weapon -> SPACE   use -> ENTER
+//   menu -> ESCAPE   inventory -> TAB  quick_load -> load  quick_save -> save
+//   status -> CTRL
+void SystemStub_SDL::applyAction(int action, bool pressed) {
+	switch (action) {
+	case kActionJump:
+		if (pressed) _pi.dirMask |= PlayerInput::DIR_UP;
+		else        _pi.dirMask &= ~PlayerInput::DIR_UP;
+		break;
+	case kActionRun:
+		_pi.shift = pressed;
+		break;
+	case kActionWeapon:
+		_pi.space = pressed;
+		break;
+	case kActionUse:
+		_pi.enter = pressed;
+		break;
+	case kActionMenu:
+		_pi.escape = pressed;
+		break;
+	case kActionInventory:
+		_pi.tab = pressed;
+		break;
+	case kActionQuickLoad:
+		if (pressed) _pi.load = true;
+		break;
+	case kActionQuickSave:
+		if (pressed) _pi.save = true;
+		break;
+	case kActionStatus:
+		_pi.ctrl = pressed;
+		break;
+	}
+}
+
+// ---- Controller event handlers ----
+
+void SystemStub_SDL::handleControllerAxis(const SDL_Event &ev) {
+	if (!_controller || !_controllerEnabled) return;
+	switch (ev.caxis.axis) {
+	case SDL_CONTROLLER_AXIS_LEFTX:
+		if (ev.caxis.value < -kJoystickCommitValue) {
+			_pi.dirMask |= PlayerInput::DIR_LEFT;
+		} else {
+			_pi.dirMask &= ~PlayerInput::DIR_LEFT;
+		}
+		if (ev.caxis.value > kJoystickCommitValue) {
+			_pi.dirMask |= PlayerInput::DIR_RIGHT;
+		} else {
+			_pi.dirMask &= ~PlayerInput::DIR_RIGHT;
+		}
+		break;
+	case SDL_CONTROLLER_AXIS_LEFTY:
+		if (ev.caxis.value < -kJoystickCommitValue) {
+			_pi.dirMask |= PlayerInput::DIR_UP;
+		} else {
+			_pi.dirMask &= ~PlayerInput::DIR_UP;
+		}
+		if (ev.caxis.value > kJoystickCommitValue) {
+			_pi.dirMask |= PlayerInput::DIR_DOWN;
+		} else {
+			_pi.dirMask &= ~PlayerInput::DIR_DOWN;
+		}
+		break;
+	}
+}
+
+void SystemStub_SDL::handleControllerButton(const SDL_Event &ev) {
+	if (!_controller || !_controllerEnabled) return;
+	const bool pressed = ev.cbutton.state == SDL_PRESSED;
+	SDL_GameControllerButton btn = (SDL_GameControllerButton)ev.cbutton.button;
+
+	// During videos and the title bitmap, controller confirm is fixed to A.
+	if (_controllerVideoMode || isBitmapState()) {
+		switch (btn) {
+		case SDL_CONTROLLER_BUTTON_A:
+			_pi.enter = pressed;
+			return;
+		case SDL_CONTROLLER_BUTTON_DPAD_UP:
+		case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+		case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+			break;
+		default:
+			return;
+		}
+	}
+
+	// In main/save menus: fixed A=confirm, B=back, DPAD=nav; remapping is ignored.
+	if (isMenuState()) {
+		switch (btn) {
+		case SDL_CONTROLLER_BUTTON_A:
+		case SDL_CONTROLLER_BUTTON_DPAD_UP:
+		case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+		case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+			// Handled below via DPAD section
+			break;
+		case SDL_CONTROLLER_BUTTON_B:
+			_pi.escape = pressed;
+			return;
+		default:
+			return; // ignore unmapped buttons in menus
+		}
+	}
+
+	// DPAD direction handling (works in both menu and gameplay contexts).
+	switch (btn) {
+	case SDL_CONTROLLER_BUTTON_DPAD_UP:
+		if (pressed) _pi.dirMask |= PlayerInput::DIR_UP;
+		else        _pi.dirMask &= ~PlayerInput::DIR_UP;
+		return;
+	case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+		if (pressed) _pi.dirMask |= PlayerInput::DIR_DOWN;
+		else        _pi.dirMask &= ~PlayerInput::DIR_DOWN;
+		return;
+	case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+		if (pressed) {
+			_pi.dirMask |= PlayerInput::DIR_LEFT;
+			if (_dpadDoubleTapRunEnabled && !isMenuState()) {
+				uint32_t now = SDL_GetTicks();
+				if (now - _lastDpadLeftTime < kDoubleTapWindowMs && !_dpadLeftWasDouble) {
+					_pi.shift = true;
+					_dpadLeftWasDouble = true;
+				} else {
+					_dpadLeftWasDouble = false;
+				}
+				_lastDpadLeftTime = now;
+			}
+		} else {
+			_pi.dirMask &= ~PlayerInput::DIR_LEFT;
+			if (_dpadLeftWasDouble) {
+				_pi.shift = false;
+				_dpadLeftWasDouble = false;
+			}
+		}
+		return;
+	case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+		if (pressed) {
+			_pi.dirMask |= PlayerInput::DIR_RIGHT;
+			if (_dpadDoubleTapRunEnabled && !isMenuState()) {
+				uint32_t now = SDL_GetTicks();
+				if (now - _lastDpadRightTime < kDoubleTapWindowMs && !_dpadRightWasDouble) {
+					_pi.shift = true;
+					_dpadRightWasDouble = true;
+				} else {
+					_dpadRightWasDouble = false;
+				}
+				_lastDpadRightTime = now;
+			}
+		} else {
+			_pi.dirMask &= ~PlayerInput::DIR_RIGHT;
+			if (_dpadRightWasDouble) {
+				_pi.shift = false;
+				_dpadRightWasDouble = false;
+			}
+		}
+		return;
+	default:
+		break;
+	}
+
+	// In menu context: A = confirm (enter).
+	if (isMenuState()) {
+		if (btn == SDL_CONTROLLER_BUTTON_A) {
+			_pi.enter = pressed;
+		}
+		return;
+	}
+
+	// Gameplay context: use the remappable action mapping.
+	for (int i = 0; i < kActionCount; ++i) {
+		if (btn == actionToButton[i]) {
+			applyAction(i, pressed);
+			return;
+		}
+	}
+}
+
+// ---- Original SystemStub_SDL methods ----
 
 void SystemStub_SDL::init(const char *title, int w, int h, bool fullscreen, int screenMode) {
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER);
@@ -686,91 +1032,11 @@ void SystemStub_SDL::handleEvent(const SDL_Event &ev, bool &paused) {
 		}
 		break;
 	case SDL_CONTROLLERAXISMOTION:
-		if (_controller) {
-			switch (ev.caxis.axis) {
-			case SDL_CONTROLLER_AXIS_LEFTX:
-			case SDL_CONTROLLER_AXIS_RIGHTX:
-				if (ev.caxis.value < -kJoystickCommitValue) {
-					_pi.dirMask |= PlayerInput::DIR_LEFT;
-				} else {
-					_pi.dirMask &= ~PlayerInput::DIR_LEFT;
-				}
-				if (ev.caxis.value > kJoystickCommitValue) {
-					_pi.dirMask |= PlayerInput::DIR_RIGHT;
-				} else {
-					_pi.dirMask &= ~PlayerInput::DIR_RIGHT;
-				}
-				break;
-			case SDL_CONTROLLER_AXIS_LEFTY:
-			case SDL_CONTROLLER_AXIS_RIGHTY:
-				if (ev.caxis.value < -kJoystickCommitValue) {
-					_pi.dirMask |= PlayerInput::DIR_UP;
-				} else {
-					_pi.dirMask &= ~PlayerInput::DIR_UP;
-				}
-				if (ev.caxis.value > kJoystickCommitValue) {
-					_pi.dirMask |= PlayerInput::DIR_DOWN;
-				} else {
-					_pi.dirMask &= ~PlayerInput::DIR_DOWN;
-				}
-				break;
-			}
-		}
+		handleControllerAxis(ev);
 		break;
 	case SDL_CONTROLLERBUTTONDOWN:
 	case SDL_CONTROLLERBUTTONUP:
-		if (_controller) {
-			const bool pressed = ev.cbutton.state == SDL_PRESSED;
-			switch (ev.cbutton.button) {
-			case SDL_CONTROLLER_BUTTON_A:
-				_pi.enter = pressed;
-				break;
-			case SDL_CONTROLLER_BUTTON_B:
-				_pi.space = pressed;
-				break;
-			case SDL_CONTROLLER_BUTTON_X:
-				_pi.shift = pressed;
-				break;
-			case SDL_CONTROLLER_BUTTON_Y:
-				_pi.ctrl = pressed;
-				break;
-			case SDL_CONTROLLER_BUTTON_BACK:
-				_pi.escape = pressed;
-				break;
-			case SDL_CONTROLLER_BUTTON_GUIDE:
-			case SDL_CONTROLLER_BUTTON_START:
-				_pi.tab = pressed;
-				break;
-			case SDL_CONTROLLER_BUTTON_DPAD_UP:
-				if (pressed) {
-					_pi.dirMask |= PlayerInput::DIR_UP;
-				} else {
-					_pi.dirMask &= ~PlayerInput::DIR_UP;
-				}
-				break;
-			case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
-				if (pressed) {
-					_pi.dirMask |= PlayerInput::DIR_DOWN;
-				} else {
-					_pi.dirMask &= ~PlayerInput::DIR_DOWN;
-				}
-				break;
-			case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
-				if (pressed) {
-					_pi.dirMask |= PlayerInput::DIR_LEFT;
-				} else {
-					_pi.dirMask &= ~PlayerInput::DIR_LEFT;
-				}
-				break;
-			case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
-				if (pressed) {
-					_pi.dirMask |= PlayerInput::DIR_RIGHT;
-				} else {
-					_pi.dirMask &= ~PlayerInput::DIR_RIGHT;
-				}
-				break;
-			}
-		}
+		handleControllerButton(ev);
 		break;
 #else
 	case SDL_ACTIVEEVENT:

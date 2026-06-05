@@ -1,4 +1,4 @@
-package com.bermudasyndrome.android.touch
+package com.bermuda.reborn.touch
 
 import android.app.AlertDialog
 import android.content.Context
@@ -13,14 +13,19 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
-import com.bermudasyndrome.android.BermudaActivity
+import android.widget.Toast
+import com.bermuda.reborn.BermudaActivity
+import com.bermuda.reborn.ControllerDeviceDetector
 
 class TouchOverlaySettingsDialog(
     private val context: Context,
     private val config: TouchOverlayConfig,
+    private val controllerEnabled: Boolean = false,
+    private val controllerConfig: ControllerConfig? = null,
     private val onConfigChanged: (TouchOverlayConfig) -> Unit,
     private val onResetAll: () -> Unit,
-    private val onDeleteAll: () -> Unit
+    private val onControllerConfigChanged: ((ControllerConfig) -> Unit)? = null,
+    private val onOpenControllerMapping: (() -> Unit)? = null
 ) {
     fun show() {
         var currentConfig = config
@@ -37,15 +42,54 @@ class TouchOverlaySettingsDialog(
 
         container.addView(title("Touch Overlay Settings"))
 
+        // --- Controller ---
+        container.addView(sectionLabel("Controller"))
+        val controllerButton = dialogButton(
+            "Controller Mapping",
+            0xFF1A3A24.toInt(),
+            0xFF4A9A5A.toInt()
+        ) {
+            if (ControllerDeviceDetector.isControllerConnected() && onOpenControllerMapping != null) {
+                onOpenControllerMapping()
+            } else {
+                Toast.makeText(context, "No controller detected", Toast.LENGTH_SHORT).show()
+            }
+        }
+        container.addView(controllerButton)
+
         // --- D-Pad ---
+        container.addView(separator())
         val dpadRunCheckBox = checkBox("Double tap left/right to run", currentConfig.dpadDoubleTapRunEnabled) {
             currentConfig = currentConfig.copy(dpadDoubleTapRunEnabled = it)
             onConfigChanged(currentConfig)
         }
+        val touchInventoryCheckBox = checkBox("Touch Inventory", currentConfig.touchInventoryEnabled) {
+            currentConfig = currentConfig.copy(touchInventoryEnabled = it)
+            onConfigChanged(currentConfig)
+        }
         container.addView(sectionLabel("D-Pad"))
         container.addView(dpadRunCheckBox)
+        container.addView(touchInventoryCheckBox)
+
+        // --- Screen Mode ---
+        container.addView(separator())
+        val screenModes = listOf("4:3 Aspect Correct", "16:9 Stretched (Gameplay)")
+        val screenModeSpinner = Spinner(context).apply {
+            adapter = object : ArrayAdapter<String>(context, android.R.layout.simple_spinner_item, screenModes) {
+                override fun getView(pos: Int, cv: View?, parent: ViewGroup) =
+                    (super.getView(pos, cv, parent) as TextView).apply { setTextColor(TEXT); textSize = 14f }
+                override fun getDropDownView(pos: Int, cv: View?, parent: ViewGroup) =
+                    (super.getDropDownView(pos, cv, parent) as TextView).apply { setTextColor(TEXT); textSize = 14f; setBackgroundColor(0xFF111820.toInt()) }
+            }
+            setSelection(currentConfig.screenMode.coerceIn(0, 1))
+            background = fieldBackground()
+            setPopupBackgroundDrawable(GradientDrawable().apply { shape = GradientDrawable.RECTANGLE; setColor(0xFF111820.toInt()); setStroke(1.dp, SURFACE_STROKE) })
+        }
+        container.addView(sectionLabel("Screen Mode"))
+        container.addView(screenModeSpinner)
 
         // --- Cheats ---
+        container.addView(separator())
         val godModeCheckBox = checkBox("God Mode / No Hit", currentConfig.cheatGodMode) {
             currentConfig = currentConfig.copy(cheatGodMode = it)
             onConfigChanged(currentConfig)
@@ -66,29 +110,10 @@ class TouchOverlaySettingsDialog(
         container.addView(infiniteAmmoCheckBox)
         container.addView(allWeaponsCheckBox)
 
-        // --- Screen Mode ---
-        val screenModes = listOf("4:3 Aspect Correct", "16:9 Stretched (Gameplay)")
-        val screenModeSpinner = Spinner(context).apply {
-            adapter = object : ArrayAdapter<String>(context, android.R.layout.simple_spinner_item, screenModes) {
-                override fun getView(pos: Int, cv: View?, parent: ViewGroup) =
-                    (super.getView(pos, cv, parent) as TextView).apply { setTextColor(TEXT); textSize = 14f }
-                override fun getDropDownView(pos: Int, cv: View?, parent: ViewGroup) =
-                    (super.getDropDownView(pos, cv, parent) as TextView).apply { setTextColor(TEXT); textSize = 14f; setBackgroundColor(0xFF111820.toInt()) }
-            }
-            setSelection(currentConfig.screenMode.coerceIn(0, 1))
-            background = fieldBackground()
-            setPopupBackgroundDrawable(GradientDrawable().apply { shape = GradientDrawable.RECTANGLE; setColor(0xFF111820.toInt()); setStroke(1.dp, SURFACE_STROKE) })
-        }
-        container.addView(sectionLabel("Screen Mode"))
-        container.addView(screenModeSpinner)
-
-        // --- Separator ---
+        // --- Layout ---
         container.addView(separator())
-
-        // --- Danger zone ---
         container.addView(sectionLabel("Layout"))
         container.addView(dialogButton("Reset to Defaults", 0xFF1A3240.toInt(), 0xFF4A7A9A.toInt()) { onResetAll() })
-        container.addView(dialogButton("Delete All Buttons", 0xFF3A1A1A.toInt(), 0xFF8A4A4A.toInt()) { onDeleteAll() })
 
         scrollView.addView(container)
 

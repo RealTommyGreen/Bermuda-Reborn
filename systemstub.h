@@ -38,6 +38,12 @@ enum {
 	SCREEN_MODE_16_9
 };
 
+enum {
+	TOUCH_INPUT_CONTEXT_GAMEPLAY,
+	TOUCH_INPUT_CONTEXT_CONFIRM,
+	TOUCH_INPUT_CONTEXT_MENU
+};
+
 struct SystemStub {
 	typedef void (*AudioCallback)(void *param, uint8_t *buf, int len);
 
@@ -64,6 +70,9 @@ struct SystemStub {
 	virtual uint8_t *lockYUV(int *pitch) = 0;
 	virtual void unlockYUV() = 0;
 	virtual void setStretchGameplay(bool stretch) {}
+	virtual void setControllerConfig(bool enabled, const char *mappingJson, bool dpadDoubleTapRun) {}
+	virtual void setVideoPlaybackActive(bool active) {}
+	virtual int getTouchInputContext() const { return TOUCH_INPUT_CONTEXT_GAMEPLAY; }
 
 	virtual void processEvents() = 0;
 	virtual void sleep(int duration) = 0;

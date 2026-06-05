@@ -5,12 +5,12 @@ plugins {
 }
 
 android {
-    namespace = "com.bermudasyndrome.android"
+    namespace = "com.bermuda.reborn"
     compileSdk = 35
     ndkVersion = "27.2.12479018"
 
     defaultConfig {
-        applicationId = "com.bermudasyndrome.android"
+        applicationId = "com.bermuda.reborn"
         minSdk = 24
         targetSdk = 35
         versionCode = 1

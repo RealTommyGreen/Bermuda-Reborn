@@ -1,9 +1,10 @@
-package com.bermudasyndrome.android.touch
+package com.bermuda.reborn.touch
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-const val TOUCH_OVERLAY_CONFIG_VERSION = 7
+const val TOUCH_OVERLAY_CONFIG_VERSION = 8
+const val CONTROLLER_CONFIG_VERSION = 1
 
 const val SCREEN_MODE_4_3 = 0
 const val SCREEN_MODE_16_9_STRETCHED = 1
@@ -18,6 +19,7 @@ data class TouchOverlayConfig(
     @SerialName("cheat_god_mode") val cheatGodMode: Boolean = false,
     @SerialName("cheat_infinite_ammo") val cheatInfiniteAmmo: Boolean = false,
     @SerialName("cheat_all_weapons") val cheatAllWeapons: Boolean = false,
+    @SerialName("touch_inventory_enabled") val touchInventoryEnabled: Boolean = true,
     @SerialName("screen_mode") val screenMode: Int = SCREEN_MODE_4_3
 )
 
@@ -52,6 +54,40 @@ data class TouchButtonAction(
     @SerialName("text") val text: String? = null,
     @SerialName("modifiers") val modifiers: List<String> = emptyList()
 )
+
+@Serializable
+data class ControllerConfig(
+    @SerialName("schema_version") val schemaVersion: Int = CONTROLLER_CONFIG_VERSION,
+    val mapping: Map<String, String> = defaultControllerMapping()
+) {
+    companion object {
+        fun defaultControllerMapping(): Map<String, String> = mapOf(
+            "A" to "jump",
+            "X" to "run",
+            "B" to "weapon",
+            "Y" to "use",
+            "START" to "menu",
+            "SELECT" to "inventory",
+            "L1" to "quick_load",
+            "R1" to "quick_save",
+            "L3" to "status"
+        )
+
+        val actions = listOf("jump", "run", "weapon", "use", "menu", "inventory", "quick_load", "quick_save", "status")
+        val buttons = listOf("A", "X", "B", "Y", "START", "SELECT", "L1", "R1", "L3")
+        val actionLabels = mapOf(
+            "jump" to "Jump",
+            "run" to "Run",
+            "weapon" to "Weapon",
+            "use" to "Use",
+            "menu" to "Menu",
+            "inventory" to "Inventory",
+            "quick_load" to "Quick Load",
+            "quick_save" to "Quick Save",
+            "status" to "Status"
+        )
+    }
+}
 
 const val BUTTON_SHAPE_CIRCLE = "circle"
 const val BUTTON_SHAPE_SQUARE = "square"

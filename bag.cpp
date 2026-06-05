@@ -11,7 +11,11 @@ void Game::handleBagMenu() {
 	const int xPosWnd = (kGameScreenWidth  - (_bagBackgroundImage.w + 1)) / 2;
 	const int yPosWnd = (kGameScreenHeight - (_bagBackgroundImage.h + 1)) / 4;
 
-		if (_stub->_pi.leftMouseButton) {
+		if (!_touchInventoryEnabled && _stub->_pi.leftMouseButton) {
+			_stub->_pi.leftMouseButton = false;
+		}
+
+		if (_touchInventoryEnabled && _stub->_pi.leftMouseButton) {
 			_stub->_pi.leftMouseButton = false;
 			int xPos = _stub->_pi.mouseX - xPosWnd;
 			int yPos = _stub->_pi.mouseY - yPosWnd;
@@ -20,7 +24,10 @@ void Game::handleBagMenu() {
 			for (int i = 0; i < 3; ++i) {
 				if (xPos >= i * 45 + 118 && xPos < i * 45 + 160) {
 					if (yPos >= 15 && yPos < 55) {
-						if (i != _currentBagAction) {
+						if (i == _currentBagAction) {
+							_nextState = kStateGame;
+							return;
+						} else {
 							_currentBagAction = i;
 						}
 					}
@@ -30,7 +37,10 @@ void Game::handleBagMenu() {
 			for (int i = 0; i < MIN(_bagObjectsCount, 4); ++i) {
 				if (xPos >= i * 32 + 261 && xPos < i * 32 + 293) {
 					if (yPos >= 4 && yPos < 44) {
-						if (i != _currentBagObject || _currentBagAction != 3) {
+						if (i == _currentBagObject && _currentBagAction == 3) {
+							_nextState = kStateGame;
+							return;
+						} else {
 							_currentBagObject = i;
 							_currentBagAction = 3; // kActionUseObject
 						}

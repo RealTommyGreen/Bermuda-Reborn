@@ -1,4 +1,4 @@
-package com.bermudasyndrome.android.touch
+package com.bermuda.reborn.touch
 
 import android.app.Activity
 import android.os.Build
@@ -8,15 +8,20 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import com.bermudasyndrome.android.BermudaActivity
+import com.bermuda.reborn.BermudaActivity
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.libsdl.app.SDLActivity
 
 class TouchOverlayController(
     private val filesDir: java.io.File,
     private val activity: Activity,
-    private val root: ViewGroup
+    private val root: ViewGroup,
+    private val controllerEnabled: Boolean = false,
+    private var controllerConfig: ControllerConfig? = null
 ) {
     private val store = TouchButtonStore(filesDir)
+    private val controllerStore = ControllerConfigStore(filesDir)
     private val dispatcher = TouchInputDispatcher()
     private var config: TouchOverlayConfig? = null
     private val buttonViews = mutableListOf<TouchOverlayButtonView>()
@@ -205,20 +210,52 @@ class TouchOverlayController(
 
     private fun onGearTapped() {
         val cfg = config ?: return
+        val cc = controllerConfig
         val dialog = TouchOverlaySettingsDialog(
             context = activity,
             config = cfg,
+            controllerEnabled = controllerEnabled,
+            controllerConfig = cc,
             onConfigChanged = { updated -> onConfigUpdated(updated) },
             onResetAll = { resetToDefaults() },
-            onDeleteAll = { deleteAllButtons() }
+            onControllerConfigChanged = { updated ->
+                controllerConfig = updated
+                controllerStore.save(updated)
+                val mappingJson = Json.encodeToString(updated.mapping)
+                val dpadRun = config?.dpadDoubleTapRunEnabled ?: true
+                BermudaActivity.nativeSetControllerConfig(controllerEnabled, mappingJson, dpadRun)
+            },
+            onOpenControllerMapping = {
+                val currentCc = controllerConfig ?: ControllerConfig()
+                openControllerMappingDialog(currentCc)
+            }
         )
         dialog.show()
+    }
+
+    private fun openControllerMappingDialog(config: ControllerConfig) {
+        ControllerMappingDialog(
+            context = activity,
+            controllerConfig = config,
+            onConfigChanged = { updated ->
+                controllerConfig = updated
+                controllerStore.save(updated)
+                val mappingJson = Json.encodeToString(updated.mapping)
+                val dpadRun = this.config?.dpadDoubleTapRunEnabled ?: true
+                BermudaActivity.nativeSetControllerConfig(controllerEnabled, mappingJson, dpadRun)
+            }
+        ).show()
     }
 
     private fun onConfigUpdated(updated: TouchOverlayConfig) {
         config = updated
         saveConfig()
+        BermudaActivity.nativeSetTouchInventoryEnabled(updated.touchInventoryEnabled)
         syncGlobalConfigToButtonViews()
+        if (controllerEnabled && controllerConfig != null) {
+            val mappingJson = Json.encodeToString(controllerConfig!!.mapping)
+            BermudaActivity.nativeSetControllerConfig(controllerEnabled, mappingJson, updated.dpadDoubleTapRunEnabled)
+        }
     }
 
     private fun syncGlobalConfigToButtonViews() {
@@ -274,6 +311,10 @@ class TouchOverlayController(
     }
 
     private fun createButtonViews() {
+        if (controllerEnabled) {
+            Log.i(TAG, "Controller mode active, skipping gameplay touch buttons")
+            return
+        }
         val cfg = config ?: return; val container = overlayContainer ?: return
         if (cfg.buttons.isEmpty()) { Log.w(TAG, "No buttons in config"); return }
         if (containerWidth <= 0 || containerHeight <= 0) {

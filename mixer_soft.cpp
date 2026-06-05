@@ -396,11 +396,18 @@ struct MixerChannel_Midi : MixerChannel {
 		return true;
 	}
 
+	void rewindMidi() {
+		_currentMessage = _midiMessages;
+		_msPosition = 0;
+		tsf_reset(_tsf);
+		tsf_channel_set_bank_preset(_tsf, 9, 128, 0);
+	}
+
 	virtual int read(int16_t *dst, int samples) {
 		if (!_midiMessages || !_tsf) return 0;
 
 		const double msPerSample = 1000.0 / _sampleRate;
-		const double blockEndMs = _msPosition + samples * msPerSample;
+		double blockEndMs = _msPosition + samples * msPerSample;
 
 		while (_currentMessage && _currentMessage->time < blockEndMs) {
 			switch (_currentMessage->type) {
@@ -434,7 +441,38 @@ struct MixerChannel_Midi : MixerChannel {
 		}
 
 		if (!_currentMessage) {
-			return 0;
+			rewindMidi();
+			blockEndMs = _msPosition + samples * msPerSample;
+			while (_currentMessage && _currentMessage->time < blockEndMs) {
+				switch (_currentMessage->type) {
+				case TML_NOTE_ON:
+					tsf_channel_note_on(_tsf, _currentMessage->channel,
+						_currentMessage->key, _currentMessage->velocity / 127.0f);
+					break;
+				case TML_NOTE_OFF:
+					tsf_channel_note_off(_tsf, _currentMessage->channel,
+						_currentMessage->key);
+					break;
+				case TML_PROGRAM_CHANGE:
+					tsf_channel_set_presetnumber(_tsf, _currentMessage->channel,
+						_currentMessage->program, 0);
+					break;
+				case TML_CONTROL_CHANGE:
+					if (_currentMessage->control == TML_VOLUME_MSB) {
+						tsf_channel_set_volume(_tsf, _currentMessage->channel,
+							_currentMessage->control_value / 127.0f);
+					} else if (_currentMessage->control == TML_PAN_MSB) {
+						tsf_channel_set_pan(_tsf, _currentMessage->channel,
+							_currentMessage->control_value / 127.0f);
+					}
+					break;
+				case TML_PITCH_BEND:
+					tsf_channel_set_pitchwheel(_tsf, _currentMessage->channel,
+						_currentMessage->pitch_bend);
+					break;
+				}
+				_currentMessage = _currentMessage->next;
+			}
 		}
 
 		const int needed = samples * 2;

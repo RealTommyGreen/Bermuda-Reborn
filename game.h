@@ -313,6 +313,7 @@ struct Game {
 	void fini();
 		void setCheatMask(uint32_t mask);
 		void setScreenMode(int mode);
+	void setTouchInventoryEnabled(bool enabled);
 	void mainLoop();
 	void updateMouseButtonsPressed();
 	void updateKeysPressedTable();
@@ -485,6 +486,7 @@ struct Game {
 	const char *_soundfontPath;
 	uint32_t _cheats;
 	int _screenMode;
+	bool _touchInventoryEnabled;
 	int _stateSlot;
 	int _pendingLoadSlot;
 	int _menuSlotMode;
@@ -500,6 +502,9 @@ struct Game {
 	int _menuObjectFrames;
 	int _menuOption;
 	int _menuHighlight;
+	int _menuLastMouseX;
+	int _menuLastMouseY;
+	bool _menuMouseTrackingInitialized;
 
 	uint8_t *_bitmapBuffer0;
 	SceneBitmap _bitmapBuffer1;
@@ -540,6 +545,7 @@ struct Game {
 	int _dialogueChoiceSelected;
 	uint8_t *_dialogueSpriteDataTable[3][105];
 	int _dialogueSpeechIndex;
+	int _dialogueInputIgnoreFrames;
 	int _loadDialogueDataState;
 	int _dialogueDescriptionSize;
 	char *_dialogueDescriptionBuffer;

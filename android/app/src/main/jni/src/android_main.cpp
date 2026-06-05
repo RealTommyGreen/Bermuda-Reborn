@@ -1,5 +1,5 @@
 /*
- * Bermuda Syndrome Android entry point
+ * Bermuda Reborn Android entry point
  */
 #include <SDL.h>
 #include <android/log.h>
@@ -17,10 +17,17 @@ static Game *g_game = nullptr;
 static SystemStub *g_stub = nullptr;
 static uint32_t g_pendingCheatMask = 0;
 static int g_pendingScreenMode = -1;
+static bool g_pendingControllerEnabled = false;
+static char g_pendingControllerMapping[2048] = {0};
+static bool g_pendingDpadDoubleTapRun = false;
+static bool g_pendingTouchInventoryEnabled = true;
+
+// Game state pointer set after Game::init so systemstub_sdl.cpp can detect menu context.
+int *g_gameStatePtr = nullptr;
 
 extern "C" {
 
-JNIEXPORT void JNICALL Java_com_bermudasyndrome_android_BermudaActivity_nativeSetCheat(JNIEnv *env, jclass cls, jint cheatId, jboolean enabled) {
+JNIEXPORT void JNICALL Java_com_bermuda_reborn_BermudaActivity_nativeSetCheat(JNIEnv *env, jclass cls, jint cheatId, jboolean enabled) {
     uint32_t bit = (cheatId == 0) ? kCheatNoHit : (cheatId == 1) ? kCheatInfiniteAmmo : (cheatId == 2) ? kCheatAllWeapons : 0;
     if (!bit) return;
     if (enabled) {
@@ -34,12 +41,49 @@ JNIEXPORT void JNICALL Java_com_bermudasyndrome_android_BermudaActivity_nativeSe
     BS_LOGI("nativeSetCheat cheatId=%d enabled=%d mask=0x%x", cheatId, enabled, g_pendingCheatMask);
 }
 
-JNIEXPORT void JNICALL Java_com_bermudasyndrome_android_BermudaActivity_nativeSetScreenMode(JNIEnv *env, jclass cls, jint mode) {
+JNIEXPORT void JNICALL Java_com_bermuda_reborn_BermudaActivity_nativeSetScreenMode(JNIEnv *env, jclass cls, jint mode) {
     g_pendingScreenMode = (mode == 1) ? SCREEN_MODE_16_9 : SCREEN_MODE_4_3;
     if (g_game) {
         g_game->setScreenMode(g_pendingScreenMode);
     }
     BS_LOGI("nativeSetScreenMode mode=%d", mode);
+}
+
+JNIEXPORT void JNICALL Java_com_bermuda_reborn_BermudaActivity_nativeSetControllerConfig(JNIEnv *env, jclass cls, jboolean enabled, jstring mapping, jboolean dpadDoubleTapRunEnabled) {
+    g_pendingControllerEnabled = (enabled == JNI_TRUE);
+    g_pendingDpadDoubleTapRun = (dpadDoubleTapRunEnabled == JNI_TRUE);
+
+    const char *mappingStr = nullptr;
+    if (mapping) {
+        mappingStr = env->GetStringUTFChars(mapping, nullptr);
+    }
+    if (mappingStr) {
+        strncpy(g_pendingControllerMapping, mappingStr, sizeof(g_pendingControllerMapping) - 1);
+        g_pendingControllerMapping[sizeof(g_pendingControllerMapping) - 1] = '\0';
+        env->ReleaseStringUTFChars(mapping, mappingStr);
+    } else {
+        g_pendingControllerMapping[0] = '\0';
+    }
+
+    if (g_stub) {
+        g_stub->setControllerConfig(g_pendingControllerEnabled, g_pendingControllerMapping, g_pendingDpadDoubleTapRun);
+    }
+    BS_LOGI("nativeSetControllerConfig enabled=%d dpadDoubleTap=%d", g_pendingControllerEnabled, g_pendingDpadDoubleTapRun);
+}
+
+JNIEXPORT void JNICALL Java_com_bermuda_reborn_BermudaActivity_nativeSetTouchInventoryEnabled(JNIEnv *env, jclass cls, jboolean enabled) {
+    g_pendingTouchInventoryEnabled = (enabled == JNI_TRUE);
+    if (g_game) {
+        g_game->setTouchInventoryEnabled(g_pendingTouchInventoryEnabled);
+    }
+    BS_LOGI("nativeSetTouchInventoryEnabled enabled=%d", g_pendingTouchInventoryEnabled);
+}
+
+JNIEXPORT jint JNICALL Java_com_bermuda_reborn_BermudaActivity_nativeGetTouchInputContext(JNIEnv *env, jclass cls) {
+    if (!g_stub) {
+        return TOUCH_INPUT_CONTEXT_GAMEPLAY;
+    }
+    return g_stub->getTouchInputContext();
 }
 
 }
@@ -89,6 +133,10 @@ extern "C" int SDL_main(int argc, char *argv[]) {
         g_stub = SystemStub_SDL_create();
         BS_LOGI("Creating Game");
         g_game = new Game(g_stub, dataPath, savePath, musicPath, soundfontPath);
+        if (g_pendingControllerEnabled || g_pendingControllerMapping[0]) {
+            g_stub->setControllerConfig(g_pendingControllerEnabled, g_pendingControllerMapping, g_pendingDpadDoubleTapRun);
+            BS_LOGI("Applied pending controller config before init enabled=%d", g_pendingControllerEnabled);
+        }
         if (g_pendingCheatMask != 0) {
             g_game->setCheatMask(g_pendingCheatMask);
             BS_LOGI("Applied pending cheat mask=0x%x", g_pendingCheatMask);
@@ -97,8 +145,20 @@ extern "C" int SDL_main(int argc, char *argv[]) {
             g_game->setScreenMode(g_pendingScreenMode);
             BS_LOGI("Applied pending screen mode=%d", g_pendingScreenMode);
         }
+        g_game->setTouchInventoryEnabled(g_pendingTouchInventoryEnabled);
+        BS_LOGI("Applied pending touch inventory enabled=%d", g_pendingTouchInventoryEnabled);
         BS_LOGI("Calling Game::init");
         g_game->init(fullscreen, screenMode);
+
+        // Set game state pointer for controller menu context detection.
+        g_gameStatePtr = &g_game->_state;
+
+        // Apply any pending controller config (may have been set before Game::init).
+        if (g_pendingControllerEnabled || g_pendingControllerMapping[0]) {
+            g_stub->setControllerConfig(g_pendingControllerEnabled, g_pendingControllerMapping, g_pendingDpadDoubleTapRun);
+            BS_LOGI("Applied pending controller config enabled=%d", g_pendingControllerEnabled);
+        }
+
         BS_LOGI("Game::init returned quit=%d", g_stub->_quit ? 1 : 0);
 
         uint32_t lastFrameTimeStamp = g_stub->getTimeStamp();
@@ -119,6 +179,7 @@ extern "C" int SDL_main(int argc, char *argv[]) {
 
         BS_LOGI("Main loop finished; calling Game::fini");
         g_game->fini();
+        g_gameStatePtr = nullptr;
         delete g_game;
         g_game = nullptr;
         delete g_stub;
@@ -132,6 +193,7 @@ extern "C" int SDL_main(int argc, char *argv[]) {
     }
 
     if (g_game) {
+        g_gameStatePtr = nullptr;
         delete g_game;
         g_game = nullptr;
     }

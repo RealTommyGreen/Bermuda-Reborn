@@ -1,0 +1,206 @@
+package com.bermuda.reborn.touch
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
+import android.graphics.RectF
+import android.util.Log
+import com.caverock.androidsvg.SVG
+import org.json.JSONArray
+import org.json.JSONObject
+
+object SvgIconManager {
+    private const val TAG = "SvgIconManager"
+    private const val CANONICAL_SIZE = 512
+    private const val ICON_PADDING_FRACTION = 0.08f
+
+    private var initialized = false
+    private var appContext: Context? = null
+    private val entries = mutableMapOf<String, IconSetEntry>()
+    private val mappings = mutableMapOf<String, String>()
+    private val bitmapCache = mutableMapOf<String, Bitmap>()
+
+    fun init(context: Context) {
+        if (initialized) return
+        initialized = true
+        appContext = context.applicationContext
+
+        try {
+            val resId = context.resources.getIdentifier("iconset", "raw", context.packageName)
+            if (resId != 0) {
+                val iconsetJson = context.resources.openRawResource(resId)
+                    .bufferedReader().readText()
+                val arr = JSONArray(iconsetJson)
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    val entry = IconSetEntry(
+                        name = obj.getString("name"),
+                        svg = obj.getString("svg"),
+                        iconFill = obj.getDouble("iconFill").toFloat(),
+                        iconOffsetX = obj.optDouble("iconOffsetX", 0.0).toFloat(),
+                        iconOffsetY = obj.optDouble("iconOffsetY", 0.0).toFloat(),
+                        iconScaleX = obj.optDouble("iconScaleX", 1.0).toFloat(),
+                        iconScaleY = obj.optDouble("iconScaleY", 1.0).toFloat()
+                    )
+                    entries[entry.name] = entry
+                    Log.d(TAG, "Loaded iconset entry: ${entry.name} -> ${entry.svg}")
+                }
+            } else {
+                Log.e(TAG, "iconset resource not found")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load iconset.json", e)
+        }
+
+        try {
+            val mappingId = context.resources.getIdentifier("iconmappings", "raw", context.packageName)
+            if (mappingId != 0) {
+                val mappingsJson = context.resources.openRawResource(mappingId)
+                    .bufferedReader().readText()
+                val json = JSONObject(mappingsJson)
+                for (key in json.keys()) {
+                    mappings[key] = json.getString(key)
+                }
+                Log.d(TAG, "Loaded ${mappings.size} icon mappings: $mappings")
+            } else {
+                Log.e(TAG, "iconmappings resource not found")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load iconmappings.json", e)
+        }
+
+        for ((_, svgName) in mappings) {
+            val entry = entries[svgName] ?: continue
+            val result = loadSvgBitmap(entry.svg)
+            Log.d(TAG, "Pre-load SVG ${entry.svg}: ${if (result != null) "OK" else "FAILED"}")
+        }
+    }
+
+    fun hasIcon(gameIconName: String): Boolean {
+        val svgName = mappings[gameIconName] ?: return false
+        return entries.containsKey(svgName)
+    }
+
+    fun getIconEntry(gameIconName: String): IconSetEntry? {
+        val svgName = mappings[gameIconName] ?: return null
+        return entries[svgName]
+    }
+
+    fun getIconBitmap(gameIconName: String): Bitmap? {
+        val svgName = mappings[gameIconName] ?: return null
+        val entry = entries[svgName] ?: return null
+        return loadSvgBitmap(entry.svg)
+    }
+
+    fun renderIcon(
+        canvas: Canvas,
+        gameIconName: String,
+        shapeBounds: RectF,
+        iconFillOverride: Float = -1f
+    ): Boolean {
+        val svgName = mappings[gameIconName] ?: return false
+        val entry = entries[svgName] ?: return false
+        val bitmap = loadSvgBitmap(entry.svg) ?: return false
+
+        val fill = if (iconFillOverride > 0f) iconFillOverride else entry.iconFill
+
+        val sbW = shapeBounds.width()
+        val sbH = shapeBounds.height()
+        val iconW = sbW * fill
+        val iconH = sbH * fill
+        val scale = minOf(iconW / bitmap.width, iconH / bitmap.height)
+        val destW = bitmap.width * scale * entry.iconScaleX
+        val destH = bitmap.height * scale * entry.iconScaleY
+
+        val offsetX = entry.iconOffsetX * sbW
+        val offsetY = entry.iconOffsetY * sbH
+
+        val dest = RectF(
+            shapeBounds.centerX() + offsetX - destW / 2f,
+            shapeBounds.centerY() + offsetY - destH / 2f,
+            shapeBounds.centerX() + offsetX + destW / 2f,
+            shapeBounds.centerY() + offsetY + destH / 2f
+        )
+        canvas.drawBitmap(bitmap, null, dest, null)
+        return true
+    }
+
+    private fun loadSvgBitmap(name: String): Bitmap? {
+        bitmapCache[name]?.let { return it }
+        val ctx = appContext ?: return null
+
+        return try {
+            val resId = ctx.resources.getIdentifier(
+                name.removeSuffix(".svg"),
+                "raw",
+                ctx.packageName
+            )
+            if (resId == 0) {
+                Log.e(TAG, "SVG resource not found: $name (ctx=${ctx.packageName})")
+                return null
+            }
+
+            val svg = ctx.resources.openRawResource(resId).use { input ->
+                SVG.getFromInputStream(input)
+            } ?: run {
+                Log.e(TAG, "Failed to parse SVG: $name")
+                return null
+            }
+
+            val iconArea = (CANONICAL_SIZE * (1f - 2f * ICON_PADDING_FRACTION)).toInt().coerceAtLeast(1)
+            val offset = ((CANONICAL_SIZE - iconArea) / 2f)
+
+            val iconBitmap = Bitmap.createBitmap(iconArea, iconArea, Bitmap.Config.ARGB_8888)
+            val iconCanvas = Canvas(iconBitmap)
+            val target = targetRect(svg, iconArea)
+            svg.renderToCanvas(iconCanvas, target)
+
+            val outBitmap = Bitmap.createBitmap(CANONICAL_SIZE, CANONICAL_SIZE, Bitmap.Config.ARGB_8888)
+            val outCanvas = Canvas(outBitmap)
+            val whitePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                colorFilter = PorterDuffColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN)
+            }
+            outCanvas.drawBitmap(iconBitmap, offset, offset, whitePaint)
+            iconBitmap.recycle()
+
+            bitmapCache[name] = outBitmap
+            outBitmap
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load SVG: $name", e)
+            null
+        }
+    }
+
+    private fun targetRect(svg: SVG, iconArea: Int): RectF {
+        val viewBox = svg.documentViewBox
+        val aspect = if (viewBox != null && viewBox.width() > 0f && viewBox.height() > 0f) {
+            viewBox.width() / viewBox.height()
+        } else {
+            val width = svg.documentWidth
+            val height = svg.documentHeight
+            if (width > 0f && height > 0f) width / height else 1f
+        }
+
+        return if (aspect > 1f) {
+            val height = iconArea / aspect
+            RectF(0f, (iconArea - height) / 2f, iconArea.toFloat(), (iconArea + height) / 2f)
+        } else {
+            val width = iconArea * aspect
+            RectF((iconArea - width) / 2f, 0f, (iconArea + width) / 2f, iconArea.toFloat())
+        }
+    }
+}
+
+data class IconSetEntry(
+    val name: String,
+    val svg: String,
+    val iconFill: Float,
+    val iconOffsetX: Float = 0f,
+    val iconOffsetY: Float = 0f,
+    val iconScaleX: Float = 1f,
+    val iconScaleY: Float = 1f
+)

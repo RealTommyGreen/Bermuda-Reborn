@@ -38,6 +38,8 @@ class TouchOverlayController(
         if (attached) return
         attached = true
 
+        SvgIconManager.init(activity)
+
         config = store.loadOrDefault()
         config = config!!.copy(layoutLocked = true)
 

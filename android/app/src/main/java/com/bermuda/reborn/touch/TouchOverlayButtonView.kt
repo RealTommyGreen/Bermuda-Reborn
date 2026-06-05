@@ -669,7 +669,14 @@ class TouchOverlayButtonView(
                     canCanvas.drawBitmap(inner, PADDING_OFFSET.toFloat(), PADDING_OFFSET.toFloat(), null)
                     inner.recycle()
 
-                    canonical
+                    val colorFilter = PorterDuffColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN)
+                    val paint = Paint().apply { this.colorFilter = colorFilter }
+                    val white = Bitmap.createBitmap(CANONICAL_SIZE, CANONICAL_SIZE, Bitmap.Config.ARGB_8888)
+                    val whiteCanvas = Canvas(white)
+                    whiteCanvas.drawBitmap(canonical, 0f, 0f, paint)
+                    canonical.recycle()
+
+                    white
 
                 } catch (_: Exception) { null }
             }

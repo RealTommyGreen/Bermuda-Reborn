@@ -38,6 +38,7 @@ data class TouchButtonConfig(
     @SerialName("anchor_y") val anchorY: String? = null,
     @SerialName("offset_x") val offsetX: Float? = null,
     @SerialName("offset_y") val offsetY: Float? = null,
+    @SerialName("icon_fill") val iconFill: Float = -1f,
     @SerialName("dpad_double_tap_run") val dpadDoubleTapRun: Boolean = false,
     val actions: List<TouchButtonAction> = emptyList()
 )

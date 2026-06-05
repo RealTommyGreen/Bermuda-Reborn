@@ -1,14 +1,21 @@
 package com.bermuda.reborn.touch
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.graphics.RectF
 import android.os.Build
 import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
+import com.caverock.androidsvg.SVG
+import org.json.JSONObject
+import org.json.JSONArray
 
 class TouchOverlayButtonView(
     context: Context,
@@ -311,28 +318,75 @@ class TouchOverlayButtonView(
     }
 
     private fun drawIcon(canvas: Canvas, icon: String) {
-        iconPaint.strokeWidth = minOf(width, height) * 0.07f
-        val cx = width / 2f; val cy = height / 2f; val s = minOf(width, height) * 0.28f
-        when (icon) {
-            "dpad_map" -> drawDpad(canvas, cx, cy, s)
-            "jump" -> drawJump(canvas, cx, cy, s)
-            "arrow_up" -> drawArrow(canvas, cx, cy + s, cx, cy - s)
-            "arrow_down" -> drawArrow(canvas, cx, cy - s, cx, cy + s)
-            "arrow_left" -> drawArrow(canvas, cx + s, cy, cx - s, cy)
-            "arrow_right" -> drawArrow(canvas, cx - s, cy, cx + s, cy)
-            "mouse_left" -> drawMouse(canvas, cx, cy, s, -1)
-            "mouse_right" -> drawMouse(canvas, cx, cy, s, 1)
-            "use", "enter" -> drawUse(canvas, cx, cy, s)
-            "weapon", "space" -> drawWeapon(canvas, cx, cy, s)
-            "run", "run_toggle" -> drawRun(canvas, cx, cy, s)
-            "inventory", "tab" -> drawInventory(canvas, cx, cy, s)
-            "status", "info" -> drawStatus(canvas, cx, cy, s)
-            "menu", "escape" -> drawMenu(canvas, cx, cy, s)
-            "quick_save" -> drawSave(canvas, cx, cy, s)
-            "quick_load" -> drawLoad(canvas, cx, cy, s)
-            "cancel_action" -> drawCancel(canvas, cx, cy, s)
-            else -> drawCenteredText(canvas, icon)
+        if (icon == "dpad_map") {
+            iconPaint.strokeWidth = minOf(width, height) * 0.07f
+            drawDpad(canvas, width / 2f, height / 2f, minOf(width, height) * 0.28f)
+            return
         }
+        val svgBitmap = SvgCache.get(icon) ?: SvgCache.load(context, icon)
+        if (svgBitmap != null) {
+            drawSvgBitmap(canvas, svgBitmap)
+        } else {
+            iconPaint.strokeWidth = minOf(width, height) * 0.07f
+            val cx = width / 2f; val cy = height / 2f; val s = minOf(width, height) * 0.28f
+            when (icon) {
+                "jump" -> drawJump(canvas, cx, cy, s)
+                "arrow_up" -> drawArrow(canvas, cx, cy + s, cx, cy - s)
+                "arrow_down" -> drawArrow(canvas, cx, cy - s, cx, cy + s)
+                "arrow_left" -> drawArrow(canvas, cx + s, cy, cx - s, cy)
+                "arrow_right" -> drawArrow(canvas, cx - s, cy, cx + s, cy)
+                "mouse_left" -> drawMouse(canvas, cx, cy, s, -1)
+                "mouse_right" -> drawMouse(canvas, cx, cy, s, 1)
+                "use", "enter" -> drawUse(canvas, cx, cy, s)
+                "weapon", "space" -> drawWeapon(canvas, cx, cy, s)
+                "run", "run_toggle" -> drawRun(canvas, cx, cy, s)
+                "inventory", "tab" -> drawInventory(canvas, cx, cy, s)
+                "status", "info" -> drawStatus(canvas, cx, cy, s)
+                "menu", "escape" -> drawMenu(canvas, cx, cy, s)
+                "quick_save" -> drawSave(canvas, cx, cy, s)
+                "quick_load" -> drawLoad(canvas, cx, cy, s)
+                "cancel_action" -> drawCancel(canvas, cx, cy, s)
+                else -> drawCenteredText(canvas, icon)
+            }
+        }
+    }
+
+    private fun drawSvgBitmap(canvas: Canvas, bitmap: Bitmap) {
+        val shape = buttonConfig.shape.lowercase()
+        val shapeW = width.toFloat()
+        val shapeH = height.toFloat()
+        val shapeBounds = when (shape) {
+            BUTTON_SHAPE_SQUARE -> RectF(0f, 0f, shapeW, shapeH)
+            BUTTON_SHAPE_RECTANGLE -> RectF(0f, 0f, minOf(shapeW, shapeH * 1.8f), shapeH)
+            else -> {
+                val r = minOf(shapeW, shapeH) / 2f
+                RectF(shapeW / 2f - r, shapeH / 2f - r, shapeW / 2f + r, shapeH / 2f + r)
+            }
+        }
+
+        val entry = SvgCache.iconsetEntry(iconName = buttonConfig.icon) ?: return
+        val iconFill = if (buttonConfig.iconFill > 0f) buttonConfig.iconFill else entry.optDouble("iconFill", 0.8).toFloat()
+        val iconScaleX = entry.optDouble("iconScaleX", 1.0).toFloat()
+        val iconScaleY = entry.optDouble("iconScaleY", 1.0).toFloat()
+        val iconOffsetX = entry.optDouble("iconOffsetX", 0.0).toFloat()
+        val iconOffsetY = entry.optDouble("iconOffsetY", 0.0).toFloat()
+
+        val iconW = shapeBounds.width() * iconFill
+        val iconH = shapeBounds.height() * iconFill
+        val scale = minOf(iconW / bitmap.width, iconH / bitmap.height)
+        val destW = bitmap.width * scale * iconScaleX
+        val destH = bitmap.height * scale * iconScaleY
+        val offsetPxX = iconOffsetX * shapeBounds.width()
+        val offsetPxY = iconOffsetY * shapeBounds.height()
+
+        val left = width / 2f - destW / 2f + offsetPxX
+        val top = height / 2f - destH / 2f + offsetPxY
+        val dest = RectF(left, top, left + destW, top + destH)
+
+        canvas.save()
+        canvas.clipRect(shapeBounds)
+        canvas.drawBitmap(bitmap, null, dest, null)
+        canvas.restore()
     }
 
     private fun drawArrow(canvas: Canvas, x1: Float, y1: Float, x2: Float, y2: Float) {
@@ -519,5 +573,106 @@ class TouchOverlayButtonView(
         private const val TAP_RELEASE_DELAY_MS = 120L
         private const val DPAD_DOUBLE_TAP_RUN_MS = 280L
         private const val TOUCH_SLOP = 16.0
+
+        object SvgCache {
+            private const val CANONICAL_SIZE = 512
+            private const val ICON_PADDING_FRACTION = 0.08f
+            private val ICON_AREA = (CANONICAL_SIZE * (1f - 2 * ICON_PADDING_FRACTION)).toInt() // 430
+            private val PADDING_OFFSET = (CANONICAL_SIZE * ICON_PADDING_FRACTION).toInt() // 41
+
+            private val cache = mutableMapOf<String, Bitmap?>()
+            private var iconsetEntries: Map<String, JSONObject>? = null
+            private var iconMappings: Map<String, String>? = null
+
+            fun get(iconId: String): Bitmap? = cache[iconId]
+
+            fun load(context: Context, iconId: String): Bitmap? {
+                val svgName = resolveSvgName(context, iconId) ?: return null.also { cache[iconId] = null }
+                return loadSvg(context, svgName)?.also { cache[iconId] = it }
+            }
+
+            fun iconsetEntry(iconName: String?): JSONObject? {
+                if (iconName == null) return null
+                val svgName = iconMappings?.get(iconName) ?: return null
+                return iconsetEntries?.get(svgName)
+            }
+
+            private fun resolveSvgName(context: Context, iconId: String): String? {
+                val mappings = iconMappings ?: loadMappings(context) ?: return null
+                return mappings[iconId]
+            }
+
+            private fun loadMappings(context: Context): Map<String, String>? {
+                return try {
+                    val raw = context.resources.openRawResource(
+                        context.resources.getIdentifier("iconmappings", "raw", context.packageName)
+                    ).bufferedReader().use { it.readText() }
+                    val json = JSONObject(raw)
+                    val map = mutableMapOf<String, String>()
+                    for (key in json.keys()) map[key] = json.getString(key)
+                    iconMappings = map
+                    loadIconsetEntries(context)
+                    map
+                } catch (_: Exception) { null }
+            }
+
+            private fun loadIconsetEntries(context: Context) {
+                try {
+                    val raw = context.resources.openRawResource(
+                        context.resources.getIdentifier("iconset", "raw", context.packageName)
+                    ).bufferedReader().use { it.readText() }
+                    val arr = JSONArray(raw)
+                    val map = mutableMapOf<String, JSONObject>()
+                    for (i in 0 until arr.length()) {
+                        val obj = arr.getJSONObject(i)
+                        map[obj.getString("name")] = obj
+                    }
+                    iconsetEntries = map
+                } catch (_: Exception) {}
+            }
+
+            private fun loadSvg(context: Context, svgName: String): Bitmap? {
+                return try {
+                    val resId = context.resources.getIdentifier(
+                        svgName.removeSuffix(".svg"), "raw", context.packageName
+                    )
+                    if (resId == 0) return null
+                    val svg = context.resources.openRawResource(resId).use { SVG.getFromInputStream(it) }
+                        ?: return null
+                    val viewBox = svg.documentViewBox ?: run {
+                        val w = svg.documentWidth.takeIf { it > 0f } ?: 1f
+                        val h = svg.documentHeight.takeIf { it > 0f } ?: 1f
+                        RectF(0f, 0f, w, h)
+                    }
+                    svg.setDocumentViewBox(viewBox.left, viewBox.top, viewBox.width(), viewBox.height())
+
+                    val inner = Bitmap.createBitmap(ICON_AREA, ICON_AREA, Bitmap.Config.ARGB_8888)
+                    val innerCanvas = Canvas(inner)
+
+                    val svgAspect = viewBox.width() / viewBox.height()
+                    val innerAspect = ICON_AREA.toFloat() / ICON_AREA.toFloat()
+                    val (targetW, targetH) = if (svgAspect > innerAspect) {
+                        ICON_AREA.toFloat() to (ICON_AREA / svgAspect)
+                    } else {
+                        (ICON_AREA * svgAspect) to ICON_AREA.toFloat()
+                    }
+                    val left = (ICON_AREA - targetW) / 2f
+                    val top = (ICON_AREA - targetH) / 2f
+                    val targetRect = RectF(left, top, left + targetW, top + targetH)
+                    svg.setDocumentViewBox(viewBox.left, viewBox.top, viewBox.width(), viewBox.height())
+                    svg.renderToCanvas(innerCanvas, targetRect)
+                    innerCanvas.save()
+                    innerCanvas.restore()
+
+                    val canonical = Bitmap.createBitmap(CANONICAL_SIZE, CANONICAL_SIZE, Bitmap.Config.ARGB_8888)
+                    val canCanvas = Canvas(canonical)
+                    canCanvas.drawBitmap(inner, PADDING_OFFSET.toFloat(), PADDING_OFFSET.toFloat(), null)
+                    inner.recycle()
+
+                    canonical
+
+                } catch (_: Exception) { null }
+            }
+        }
     }
 }

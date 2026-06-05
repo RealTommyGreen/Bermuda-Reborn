@@ -1,0 +1,12 @@
+{
+  "jump": "BS_Jump",
+  "run": "BS_Run",
+  "weapon": "BS_Shoot",
+  "use": "BS_Use",
+  "menu": "BS_Menu",
+  "inventory": "BS_Inventory",
+  "status": "BS_Status",
+  "quick_save": "BS_Save",
+  "quick_load": "BS_Load",
+  "cancel_action": "BS_Cancel"
+}

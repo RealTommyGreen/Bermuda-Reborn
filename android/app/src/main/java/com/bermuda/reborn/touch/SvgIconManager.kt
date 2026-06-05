@@ -9,15 +9,16 @@ import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.graphics.RectF
 import android.util.Log
+import com.bermuda.reborn.R
 import com.caverock.androidsvg.SVG
-import org.json.JSONArray
-import org.json.JSONObject
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 object SvgIconManager {
     private const val TAG = "SvgIconManager"
-    private const val CANONICAL_SIZE = 512
+    private const val ICON_BITMAP_SIZE = 512
     private const val ICON_PADDING_FRACTION = 0.08f
-
+    private val json = Json { ignoreUnknownKeys = true }
     private var initialized = false
     private var appContext: Context? = null
     private val entries = mutableMapOf<String, IconSetEntry>()
@@ -30,45 +31,23 @@ object SvgIconManager {
         appContext = context.applicationContext
 
         try {
-            val resId = context.resources.getIdentifier("iconset", "raw", context.packageName)
-            if (resId != 0) {
-                val iconsetJson = context.resources.openRawResource(resId)
-                    .bufferedReader().readText()
-                val arr = JSONArray(iconsetJson)
-                for (i in 0 until arr.length()) {
-                    val obj = arr.getJSONObject(i)
-                    val entry = IconSetEntry(
-                        name = obj.getString("name"),
-                        svg = obj.getString("svg"),
-                        iconFill = obj.getDouble("iconFill").toFloat(),
-                        iconOffsetX = obj.optDouble("iconOffsetX", 0.0).toFloat(),
-                        iconOffsetY = obj.optDouble("iconOffsetY", 0.0).toFloat(),
-                        iconScaleX = obj.optDouble("iconScaleX", 1.0).toFloat(),
-                        iconScaleY = obj.optDouble("iconScaleY", 1.0).toFloat()
-                    )
-                    entries[entry.name] = entry
-                    Log.d(TAG, "Loaded iconset entry: ${entry.name} -> ${entry.svg}")
-                }
-            } else {
-                Log.e(TAG, "iconset resource not found")
+            val iconsetJson = context.resources.openRawResource(R.raw.iconset)
+                .bufferedReader().readText()
+            val list: List<IconSetEntry> = json.decodeFromString(iconsetJson)
+            for (entry in list) {
+                entries[entry.name] = entry
+                Log.d(TAG, "Loaded iconset entry: ${entry.name} -> ${entry.svg}")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load iconset.json", e)
         }
 
         try {
-            val mappingId = context.resources.getIdentifier("iconmappings", "raw", context.packageName)
-            if (mappingId != 0) {
-                val mappingsJson = context.resources.openRawResource(mappingId)
-                    .bufferedReader().readText()
-                val json = JSONObject(mappingsJson)
-                for (key in json.keys()) {
-                    mappings[key] = json.getString(key)
-                }
-                Log.d(TAG, "Loaded ${mappings.size} icon mappings: $mappings")
-            } else {
-                Log.e(TAG, "iconmappings resource not found")
-            }
+            val mappingsJson = context.resources.openRawResource(R.raw.iconmappings)
+                .bufferedReader().readText()
+            val map: Map<String, String> = json.decodeFromString(mappingsJson)
+            mappings.putAll(map)
+            Log.d(TAG, "Loaded ${mappings.size} icon mappings: $mappings")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load iconmappings.json", e)
         }
@@ -85,21 +64,17 @@ object SvgIconManager {
         return entries.containsKey(svgName)
     }
 
-    fun getIconEntry(gameIconName: String): IconSetEntry? {
+    fun getIconFill(gameIconName: String): Float? {
         val svgName = mappings[gameIconName] ?: return null
-        return entries[svgName]
-    }
-
-    fun getIconBitmap(gameIconName: String): Bitmap? {
-        val svgName = mappings[gameIconName] ?: return null
-        val entry = entries[svgName] ?: return null
-        return loadSvgBitmap(entry.svg)
+        return entries[svgName]?.iconFill
     }
 
     fun renderIcon(
         canvas: Canvas,
+        context: Context,
         gameIconName: String,
         shapeBounds: RectF,
+        fillPaint: Paint,
         iconFillOverride: Float = -1f
     ): Boolean {
         val svgName = mappings[gameIconName] ?: return false
@@ -125,7 +100,7 @@ object SvgIconManager {
             shapeBounds.centerX() + offsetX + destW / 2f,
             shapeBounds.centerY() + offsetY + destH / 2f
         )
-        canvas.drawBitmap(bitmap, null, dest, null)
+        canvas.drawBitmap(bitmap, null, dest, fillPaint)
         return true
     }
 
@@ -140,26 +115,24 @@ object SvgIconManager {
                 ctx.packageName
             )
             if (resId == 0) {
-                Log.e(TAG, "SVG resource not found: $name (ctx=${ctx.packageName})")
+                Log.e(TAG, "SVG resource not found: $name")
                 return null
             }
 
             val svg = ctx.resources.openRawResource(resId).use { input ->
                 SVG.getFromInputStream(input)
-            } ?: run {
-                Log.e(TAG, "Failed to parse SVG: $name")
-                return null
-            }
+            } ?: return null
 
-            val iconArea = (CANONICAL_SIZE * (1f - 2f * ICON_PADDING_FRACTION)).toInt().coerceAtLeast(1)
-            val offset = ((CANONICAL_SIZE - iconArea) / 2f)
+            val iconArea = (ICON_BITMAP_SIZE * (1f - 2f * ICON_PADDING_FRACTION)).toInt().coerceAtLeast(1)
+            val offset = ((ICON_BITMAP_SIZE - iconArea) / 2f)
 
             val iconBitmap = Bitmap.createBitmap(iconArea, iconArea, Bitmap.Config.ARGB_8888)
             val iconCanvas = Canvas(iconBitmap)
-            val target = targetRect(svg, iconArea)
-            svg.renderToCanvas(iconCanvas, target)
+            svg.documentWidth = iconArea.toFloat()
+            svg.documentHeight = iconArea.toFloat()
+            svg.renderToCanvas(iconCanvas, targetRect(svg, iconArea))
 
-            val outBitmap = Bitmap.createBitmap(CANONICAL_SIZE, CANONICAL_SIZE, Bitmap.Config.ARGB_8888)
+            val outBitmap = Bitmap.createBitmap(ICON_BITMAP_SIZE, ICON_BITMAP_SIZE, Bitmap.Config.ARGB_8888)
             val outCanvas = Canvas(outBitmap)
             val whitePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 colorFilter = PorterDuffColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN)
@@ -195,6 +168,7 @@ object SvgIconManager {
     }
 }
 
+@Serializable
 data class IconSetEntry(
     val name: String,
     val svg: String,

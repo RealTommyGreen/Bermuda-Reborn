@@ -296,7 +296,6 @@ void SystemStub_SDL::applyAction(int action, bool pressed) {
 		break;
 	case kActionRun:
 		_pi.runAction = pressed;
-		_pi.shift = pressed;
 		break;
 	case kActionWeapon:
 		_pi.weaponToggleAction = pressed;
@@ -326,7 +325,6 @@ void SystemStub_SDL::performControlAction(int action, bool pressed) {
 	switch (action) {
 	case CONTROL_ACTION_RUN:
 		_pi.runAction = pressed;
-		_pi.shift = pressed;
 		break;
 	case CONTROL_ACTION_JUMP_BUTTON:
 		_pi.jumpButtonAction = pressed;

@@ -491,10 +491,14 @@ class TouchOverlayController(
             // Icon switching for armed state
             if (btnId == "btn_run" && armed) {
                 val newIcon = if (gunDrawn) "fire" else if (swordDrawn) "sword" else null
-                if (newIcon != null) view.updateConfig(view.config.copy(icon = newIcon))
-                else view.updateConfig(view.config.copy(icon = "run"))
+                if (newIcon != null) view.updateConfig(view.config.copy(icon = newIcon, actions = runActions()))
+                else view.updateConfig(view.config.copy(icon = "run", actions = runActions()))
             } else if (btnId == "btn_run" && !armed) {
-                view.updateConfig(view.config.copy(icon = "run"))
+                view.updateConfig(view.config.copy(icon = "run", actions = runActions()))
+            }
+
+            if (btnId == "btn_weapon") {
+                view.updateConfig(view.config.copy(icon = "weapon", actions = weaponActions()))
             }
 
             if (btnId == "btn_jump" && context == 1) {
@@ -513,6 +517,12 @@ class TouchOverlayController(
             }
         }
     }
+
+    private fun runActions(): List<TouchButtonAction> =
+        listOf(TouchButtonAction(type = "control_action", mode = "hold", button = "run"))
+
+    private fun weaponActions(): List<TouchButtonAction> =
+        listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "weapon_toggle"))
 
     private fun visibilityForContext(buttonId: String, context: Int): Boolean {
         // context values: 0=GAMEPLAY, 1=VIDEO, 2=BITMAP_CONFIRM, 3=MENU

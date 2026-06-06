@@ -307,6 +307,39 @@ Erwartung fuer naechsten Device-Test:
 
 ---
 
+## Device-Test-Fix 3: Persistierte Button-Actions fuer Weapon/Fire/Reload (2026-06-06)
+
+Status: **Fix umgesetzt und signierte Release-APK fuer Device-Test installiert. Keine Freigabe fuer APK-Upload auf Drive.**
+
+Ausgangspunkt:
+- DPAD funktioniert wieder.
+- Icons sind korrekt: unbewaffnet Run/Jump, bei gezogener Gun Fire/Reload.
+- Funktion war falsch: Weapon schoss weiter, Fire steckte die Waffe weg bzw. nutzte altes Shift-Verhalten, Reload tat nichts, und nach Holstern blieben Fire/Reload sichtbar.
+
+Ursache:
+- Die Runtime-UI wechselte Icons, aber bestehende gespeicherte `touch_buttons.json`-Layouts konnten noch alte Actions behalten. Dadurch passten Icon und dispatchte Action nicht zusammen.
+- Die semantische Run-Action setzte im SDL-Stub zusaetzlich `_pi.shift`, was fuer das neue Run/Fire-Verhalten nicht mehr noetig ist und bewaffnetes Verhalten stoeren kann.
+
+Fix:
+- `TOUCH_OVERLAY_CONFIG_VERSION` auf 10 erhoeht, damit bestehende Layouts migriert werden.
+- `TouchButtonStore` normalisiert bekannte Buttons auch bei aktueller Schema-Version: Positionen bleiben erhalten, Actions/Icons/Labels werden fuer `btn_run`, `btn_weapon`, `btn_jump`, `btn_use`, `btn_menu` auf Plan-Defaults gesetzt.
+- `TouchOverlayController` setzt zur Laufzeit fuer `btn_run` immer die semantische `run`-Action und fuer `btn_weapon` immer `weapon_toggle`, unabhaengig von gespeicherten Alt-Actions.
+- `systemstub_sdl.cpp`: `CONTROL_ACTION_RUN`/Controller-Run setzen nur noch `runAction`, nicht mehr direkt `_pi.shift`. Unbewaffneter Run und bewaffnetes Fire werden weiterhin zentral in `Game::updateKeysPressedTable()` entschieden.
+
+Lokaler Check:
+- Branch: `Reborn`
+- Build: `android/gradlew.bat :app:assembleDebug` erfolgreich
+- Build: `android/gradlew.bat :app:assembleRelease` erfolgreich
+- Signierte Release-APK per `adb install -r` erfolgreich installiert
+
+Erwartung fuer naechsten Device-Test:
+- Weapon-Tap zieht/holstert nur die Waffe und schiesst nicht.
+- Bei gezogener Gun feuert der Fire-Button (`btn_run`) und holstert nicht.
+- Reload-Button (`btn_jump`) startet die Reload-Sequenz.
+- Nach Holstern wechseln Icons und Actions wieder auf Run/Jump.
+
+---
+
 ## Build (Release APK)
 
 ```powershell

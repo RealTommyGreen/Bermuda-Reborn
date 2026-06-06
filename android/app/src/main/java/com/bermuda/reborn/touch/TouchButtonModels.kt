@@ -3,7 +3,7 @@ package com.bermuda.reborn.touch
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-const val TOUCH_OVERLAY_CONFIG_VERSION = 9
+const val TOUCH_OVERLAY_CONFIG_VERSION = 10
 const val CONTROLLER_CONFIG_VERSION = 1
 
 const val SCREEN_MODE_4_3 = 0

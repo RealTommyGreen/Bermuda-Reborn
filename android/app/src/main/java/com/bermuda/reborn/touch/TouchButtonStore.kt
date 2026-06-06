@@ -31,7 +31,9 @@ class TouchButtonStore(private val filesDir: File) {
                 save(normalized)
                 normalized
             } else {
-                config
+                val normalized = normalizeKnownButtons(config)
+                if (normalized != config) save(normalized)
+                normalized
             }
         } catch (e: SerializationException) {
             Log.w(TAG, "Corrupt config, loading defaults: ${e.message}")
@@ -68,7 +70,14 @@ class TouchButtonStore(private val filesDir: File) {
             )
         }
 
-        // v7 → v9: update control_action buttons to keep positions, update actions & icons
+        // v7+ -> v10: keep positions, but force known gameplay buttons onto semantic actions.
+        return normalizeKnownButtons(config).copy(
+            schemaVersion = TOUCH_OVERLAY_CONFIG_VERSION,
+            layoutLocked = true
+        )
+    }
+
+    private fun normalizeKnownButtons(config: TouchOverlayConfig): TouchOverlayConfig {
         val migratedButtons = config.buttons.map { button ->
             val newActions = migrateActionsForButton(button)
             val newIcon = migrateIconForButton(button)

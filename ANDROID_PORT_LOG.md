@@ -1074,3 +1074,31 @@ Fix:
 Lokaler Check:
 - `android/gradlew.bat :app:assembleRelease` erfolgreich
 - Release-APK per `adb install -r` erfolgreich installiert auf `DEVICE_SERIAL`
+
+---
+
+## Bugfix: Run-Button Auto-Walk flip-Richtung invertiert (2026-06-06)
+
+Status: **Behoben, Release-APK per ADB installiert und vom Nutzer am Device als funktionierend bestaetigt.**
+
+Symptom:
+- Im Stillstand liess ein Tap auf den Run-Button Jack die Blickrichtung wechseln, ohne zu rennen.
+- Bei gehaltenem Run-Button drehte Jack wild hin und her (links-rechts-links-rechts).
+
+Ursache:
+- `game.cpp:645` interpretierte `jack->flip` als Boolean (`if (jack->flip)`).
+- Die Bermuda Engine nutzt `flip` aber als Tri-State: `0`=kein Flip (rechts), `1`=vertikaler Flip, `2`=horizontaler Flip (Sprite gespiegelt = Jack blickt links).
+- `if (jack->flip)` war fuer `flip==2` (links) wahr und setzte den RIGHT-Key. Pro Frame:
+  1. `flip=0` (rechts) → Code setzt LEFT → Engine dreht auf `flip=2` (links)
+  2. `flip=2` (links) → Code setzt RIGHT → Engine dreht auf `flip=0` (rechts)
+  3. Endlosschleife → wildes Geflippe
+
+Fix:
+- `game.cpp:645`: `if (jack->flip)` → `if (jack->flip == 2)` mit getauschten Keys:
+  - `flip==2` (links) → `_keysPressed[37]` (LEFT)
+  - `flip!=2` (rechts) → `_keysPressed[39]` (RIGHT)
+
+Lokaler Check:
+- `android/gradlew.bat :app:assembleRelease` erfolgreich
+- Release-APK per `adb install -r` erfolgreich installiert auf `DEVICE_SERIAL`
+- Device-Test: Nutzer bestaetigt korrektes Verhalten

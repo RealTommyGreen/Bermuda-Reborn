@@ -638,16 +638,17 @@ void Game::updateKeysPressedTable() {
 		} else {
 			_keysPressed[16] = 1; // SHIFT = run
 			_keysPressed[32] = 0;
-			// auto-walk in Jack's facing direction if no D-Pad horizontal input
+			// auto-walk in Jack's facing direction if no D-Pad horizontal input.
+			// flip==2 means sprite is horizontally flipped -> Jack faces left.
 			if (!(_stub->_pi.dirMask & (PlayerInput::DIR_LEFT | PlayerInput::DIR_RIGHT))) {
 				SceneObject *jack = findJack();
 				if (jack) {
-					if (jack->flip) {
-						_keysPressed[39] = 1; // facing right
-						_keysPressed[37] = 0;
-					} else {
-						_keysPressed[37] = 1; // facing left
+					if (jack->flip == 2) {
+						_keysPressed[37] = 1; // flip=2 -> facing left
 						_keysPressed[39] = 0;
+					} else {
+						_keysPressed[39] = 1; // flip=0 (or 1) -> facing right
+						_keysPressed[37] = 0;
 					}
 				}
 			}

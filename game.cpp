@@ -134,6 +134,7 @@ void Game::restart() {
 	_currentPlayingSoundPriority = 0;
 	_lifeBarDisplayed2 = _lifeBarDisplayed = true;
 	_reloadPhase = 0;
+	_reloadWasCrouched = false;
 
 	memset(_keysPressed, 0, sizeof(_keysPressed));
 	_musicTrack = 0;
@@ -251,41 +252,48 @@ void Game::handleWeaponToggle() {
 }
 
 void Game::handleReloadSequence() {
-	if (!isGunDrawn()) return;
+	if (!isGunDrawn() || _reloadPhase != 0) return;
 	SceneObject *jack = findJack();
 	if (!jack) return;
-	const bool crouched = (_keysPressed[40] != 0);
-	if (!crouched) {
-		_keysPressed[40] = 1; // crouch first
-		_reloadPhase = 1;
-	} else {
-		if (_reloadPhase == 1) {
-			// already crouched, press DOWN for reload
-			_reloadPhase = 2;
-		}
-	}
+	_reloadWasCrouched = (_keysPressed[40] != 0) || ((_stub->_pi.dirMask & PlayerInput::DIR_DOWN) != 0);
+	_keysPressed[40] = 1; // hold DOWN for reload
+	_reloadPhase = 1;
 }
 
 bool Game::isReloadComplete() const {
-	if (_reloadPhase != 2) return true;
-	SceneObject *jack = const_cast<Game *>(this)->findJack();
-	if (!jack) return true;
-	// Reload done when Jack is no longer in reload/crouch-reload motion
-	// and ammo is full
-	if (_varsTable[3] >= 4) {
-		return true;
-	}
+	if (_reloadPhase != 1) return true;
+	if (_varsTable[3] >= 4) return true;
 	return false;
 }
 
 void Game::finishReloadIfComplete() {
-	if (_reloadPhase == 2 && isReloadComplete()) {
-		const bool crouched = (_keysPressed[40] != 0);
-		if (!crouched) {
-			_keysPressed[40] = 0; // stand up
-		}
+	if (_reloadPhase == 2) {
+		_keysPressed[38] = 1; // one UP pulse to stand after a standing reload
 		_reloadPhase = 0;
+		return;
 	}
+	if (_reloadPhase != 1 || !isReloadComplete()) return;
+
+	// Log Jack's motion for reload-end motion detection refinement
+	SceneObject *jack = findJack();
+	if (jack) {
+		static int reloadEndLogCount = 0;
+		if (reloadEndLogCount < 10) {
+			int animNum = _sceneObjectMotionsTable[jack->motionNum2].animNum;
+			debug(DBG_GAME, "ReloadEnd: ammo=%d motionNum2=%d animNum=%d wasCrouched=%d",
+			      _varsTable[3], jack->motionNum2, animNum, _reloadWasCrouched);
+			++reloadEndLogCount;
+		}
+	}
+
+	if (!_reloadWasCrouched) {
+		_keysPressed[40] = 0;
+		_keysPressed[38] = 1; // standing: send UP to stand up
+		_reloadPhase = 2;
+		return;
+	}
+	_keysPressed[40] = 0; // crouched: release reload DOWN, no UP pulse
+	_reloadPhase = 0;
 }
 
 int Game::engineControlState() const {
@@ -297,6 +305,31 @@ int Game::engineControlState() const {
 	if (_reloadPhase)        state |= 1 << 3; // RELOAD_BUSY
 	if (_lifeBarDisplayed)   state |= 1 << 4; // STATUS_VISIBLE
 	return state;
+}
+
+bool Game::isJackHangingOnLedge() {
+	SceneObject *jack = findJack();
+	if (!jack || jack->state != 1) return false;
+	// Hanging means Y is vertically stable but above ground level,
+	// and Jack is in a non-base animation (not walking/standing/idle).
+	if (jack->y != jack->yPrev) return false;
+	if (jack->y <= 2) return false; // on or near ground
+
+	int animNum = _sceneObjectMotionsTable[jack->motionNum2].animNum;
+	int baseAnimNum = _sceneObjectMotionsTable[jack->motionNum].animNum;
+
+	// Log Jack's motion data for hang-detection refinement on device
+	static int hangLogCount = 0;
+	if (hangLogCount < 30) {
+		debug(DBG_GAME, "JackHangCheck: y=%d yPrev=%d motionNum2=%d animNum=%d baseAnim=%d",
+		      jack->y, jack->yPrev, jack->motionNum2, animNum, baseAnimNum);
+		++hangLogCount;
+	}
+
+	if (animNum != baseAnimNum) {
+		return true;
+	}
+	return false;
 }
 
 void Game::mainLoop() {
@@ -546,15 +579,16 @@ void Game::updateKeysPressedTable() {
 		_keysPressed[39] = (_stub->_pi.dirMask & PlayerInput::DIR_RIGHT) ? 1 : 0;
 	}
 
-	// -- Jump: dedicated jumpButtonAction maps to Key 38 for normal jump, but NOT for ledge hang --
-	if (_stub->_pi.jumpButtonAction) {
-		_keysPressed[38] = 1;
-	} else {
-		_keysPressed[38] = (_stub->_pi.dirMask & PlayerInput::DIR_UP) ? 1 : 0;
-	}
+	// -- Jump: DPAD-Up always maps to Key 38 for ledge climb-up.
+	// Dedicated jump is suppressed only while hanging so it does not auto-climb.
+	const bool dpadUp = (_stub->_pi.dirMask & PlayerInput::DIR_UP) != 0;
+	const bool dedicatedJump = _stub->_pi.jumpButtonAction && !isJackHangingOnLedge();
+	_keysPressed[38] = (dpadUp || dedicatedJump) ? 1 : 0;
 
-	// -- DOWN: always from dirMask, reload sequence managed by handleReloadSequence --
-	_keysPressed[40] = (_stub->_pi.dirMask & PlayerInput::DIR_DOWN) ? 1 : 0;
+	// -- DOWN: from dirMask unless reload is actively holding DOWN.
+	if (_reloadPhase != 1) {
+		_keysPressed[40] = (_stub->_pi.dirMask & PlayerInput::DIR_DOWN) ? 1 : 0;
+	}
 
 	_keysPressed[13] = _stub->_pi.enter ? 1 : 0;
 

@@ -497,10 +497,13 @@ class TouchOverlayController(
                 view.updateConfig(view.config.copy(icon = "run"))
             }
 
-            if (btnId == "btn_jump" && gunDrawn) {
-                view.updateConfig(view.config.copy(icon = "reload"))
+            if (btnId == "btn_jump" && context == 1) {
+                // Video context: show cancel icon for skip
+                view.updateConfig(view.config.copy(icon = "cancel"))
+            } else if (btnId == "btn_jump" && gunDrawn) {
+                view.updateConfig(view.config.copy(icon = "reload", actions = listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "reload"))))
             } else if (btnId == "btn_jump" && !gunDrawn) {
-                view.updateConfig(view.config.copy(icon = "jump"))
+                view.updateConfig(view.config.copy(icon = "jump", actions = listOf(TouchButtonAction(type = "control_action", mode = "hold", button = "jump_button"))))
             }
         }
     }
@@ -512,7 +515,7 @@ class TouchOverlayController(
                 buttonId == "btn_jump" // acts as skip in video
             }
             3, 2 -> { // MENU / BITMAP_CONFIRM: dpad, OK/Cancel
-                buttonId == "dpad" || buttonId == "btn_use" || buttonId == "btn_menu" || buttonId == "btn_jump"
+                buttonId == "dpad" || buttonId == "btn_use" || buttonId == "btn_menu"
             }
             else -> { // GAMEPLAY: all buttons visible
                 true

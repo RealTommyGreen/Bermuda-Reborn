@@ -322,6 +322,7 @@ struct Game {
 	void handleReloadSequence();
 	bool isReloadComplete() const;
 	void finishReloadIfComplete();
+	bool isJackHangingOnLedge();
 	int engineControlState() const;
 	void mainLoop();
 	void updateMouseButtonsPressed();
@@ -498,6 +499,7 @@ struct Game {
 	bool _touchInventoryEnabled;
 	int _stateSlot;
 	int _reloadPhase;
+	bool _reloadWasCrouched;
 	int _pendingLoadSlot;
 	int _menuSlotMode;
 	int _menuSlotSelection;

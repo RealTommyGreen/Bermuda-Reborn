@@ -19,6 +19,15 @@ class TouchInputDispatcher {
     }
 
     fun performButtonAction(buttonId: String?, action: TouchButtonAction, pressed: Boolean) {
+        // Contextual override for control_action type (video skip, menu cancel)
+        if (buttonId != null && action.type == "control_action") {
+            val contextualKey = contextualKeyCodeForControl(buttonId, pressed)
+            if (contextualKey != null) {
+                performRawKeyCode(contextualKey, pressed)
+                return
+            }
+        }
+
         if (buttonId != null && action.type == "key") {
             val contextualKeyCode = contextualKeyCode(buttonId, pressed)
             if (contextualKeyCode != null) {
@@ -126,6 +135,30 @@ class TouchInputDispatcher {
                 KeyEvent.KEYCODE_ENTER
             buttonId == "btn_weapon" && context == TOUCH_CONTEXT_MENU ->
                 KeyEvent.KEYCODE_ESCAPE
+            else -> null
+        }
+
+        if (keyCode != null) {
+            heldContextualButtonKeys[buttonId] = keyCode
+        }
+        return keyCode
+    }
+
+    private fun contextualKeyCodeForControl(buttonId: String, pressed: Boolean): Int? {
+        if (!pressed) {
+            return heldContextualButtonKeys.remove(buttonId)
+        }
+
+        val context = try {
+            BermudaActivity.nativeGetTouchInputContext()
+        } catch (e: UnsatisfiedLinkError) {
+            TOUCH_CONTEXT_GAMEPLAY
+        }
+
+        val keyCode = when {
+            // In video/bitmap/menu contexts, jump button acts as ENTER (skip/confirm)
+            buttonId == "btn_jump" && context != TOUCH_CONTEXT_GAMEPLAY ->
+                KeyEvent.KEYCODE_ENTER
             else -> null
         }
 

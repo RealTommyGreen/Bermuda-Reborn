@@ -8,6 +8,7 @@
   "status": "BS_Status",
   "quick_save": "BS_Save",
   "quick_load": "BS_Load",
+  "cancel": "BS_Cancel",
   "cancel_action": "BS_Cancel",
   "fire": "BS_Fire",
   "reload": "BS_Reload",

@@ -147,6 +147,111 @@
 
 ---
 
+## Review: Controls Endabnahme vor Device-Tests (2026-06-06)
+
+Status: **Keine Freigabe fuer Device-Tests. Fix erforderlich.**
+
+Lokaler Check:
+- Branch: `Reborn`
+- Arbeitsbaum vor Review: sauber
+- Build: `android/gradlew.bat :app:assembleDebug` erfolgreich
+
+Blocker:
+- `systemstub_sdl.cpp:338-349`: `CONTROL_ACTION_WEAPON_TOGGLE`, `CONTROL_ACTION_USE` und `CONTROL_ACTION_MENU_BACK` setzen auf Press rohe Inputs (`space`, `enter`, `escape`), behandeln Release aber nicht. Besonders `space` bleibt nach einem Weapon-Tap dauerhaft aktiv. Touch-Taps senden nach 120 ms Release, aber Native ignoriert diesen Pfad.
+- `systemstub_sdl.cpp:333-336` und `systemstub_sdl.cpp:293-296`: dedizierter Jump setzt weiterhin `dirMask |= DIR_UP`. Damit ist `jumpButtonAction` nicht sauber von DPAD-Up getrennt; das geplante Kantenverhalten kann so nicht zuverlaessig funktionieren.
+- `TouchOverlayController.kt:500-503`: bei gezogener Gun wird `btn_jump` nur auf das Reload-Icon umgeschaltet. Die Action bleibt `jump_button`; `CONTROL_ACTION_RELOAD` wird vom Touch-Overlay nie ausgeloest.
+- `TouchOverlayController.kt:511-515` plus `TouchInputDispatcher.kt:22-35`: Video- und Menu-Kontext benutzen sichtbare `control_action` Buttons, aber die alte Kontext-Uebersetzung auf ENTER/ESCAPE greift nur fuer `type == "key"`. Video-Skip mit `btn_jump` dispatcht deshalb Jump statt Skip/Cancel. Im Menu ist zusaetzlich `btn_jump` sichtbar, obwohl nur D-Pad, OK und Cancel vorgesehen sind.
+- `game.cpp:253-266` und `game.cpp:561-566`: Reload-State-Machine kommt bei einem Tap nur bis `_reloadPhase = 1`. Im naechsten Frame wird `_keysPressed[40]` wieder aus `dirMask` ueberschrieben; Phase 2 wird ohne erneute Reload-Action nicht erreicht. Auch das geplante Warten auf Animations-/Reload-Ende ist nicht implementiert, sondern nur `_varsTable[3] >= 4`.
+
+Weitere Hinweise:
+- `performControlAction()` sollte semantische Actions von rohen Keyboard-Feldern trennen. Rohes `space`/`enter`/`escape` nur dann setzen, wenn der jeweilige Control-Pfad genau diesen Key benoetigt und Release symmetrisch behandelt.
+- Touch-Kontext sollte entweder die Button-Actions dynamisch ersetzen oder fuer Video/Menu dedizierte sichtbare Buttons mit passenden `control_action`/Key-Targets verwenden.
+- Controller-Mapping muss dieselben Fixes bekommen, weil `applyAction()` aktuell weiterhin rohe Keys mit den semantischen Feldern vermischt.
+
+Erwartung fuer Fix:
+- Nach Fix erneut Build ausfuehren.
+- Vor Device-Tests erneut Endabnahme durch Codex.
+- Keine APK auf Drive hochladen.
+
+---
+
+## Phase 16: Codex-Review-Fixes Controls.md (2026-06-06)
+
+Alle 5 Blocker aus Codex Review behoben:
+
+- **Fix 1 — `performControlAction` Release-Handling:** `CONTROL_ACTION_WEAPON_TOGGLE` setzt nur noch `weaponToggleAction` (one-shot), kein rohes `space` mehr. `CONTROL_ACTION_USE`/`CONTROL_ACTION_MENU_BACK` setzen `enter`/`escape` symmetrisch via `= pressed`. `applyAction(kActionWeapon)` ebenfalls von `_pi.space` befreit.
+- **Fix 2 — Jump/DPAD-Trennung:** `performControlAction(CONTROL_ACTION_JUMP_BUTTON)` und `applyAction(kActionJump)` setzen kein `dirMask |= DIR_UP` mehr. `jumpButtonAction` arbeitet jetzt isoliert; DPAD-Up bleibt separater Pfad.
+- **Fix 3 — btn_jump RELOAD-Action:** `TouchOverlayController.syncContextSensitiveState()` schaltet jetzt nicht nur das Icon, sondern auch die `actions`-Liste um: Gun drawn → `control_action` "reload" (tap), normal → "jump_button" (hold).
+- **Fix 4 — Video/Menu-Kontext:** `TouchInputDispatcher` hat neue `contextualKeyCodeForControl()` — in Video/Bitmap/Menu-Kontext dispatcht `btn_jump` jetzt `KEYCODE_ENTER` statt der control_action. `visibilityForContext` zeigt `btn_jump` nur noch im Video-Kontext, nicht mehr im Menu.
+- **Fix 5 — Reload-State-Machine:** `handleReloadSequence()` auf Single-Phase vereinfacht (hält DOWN durchgehend). `updateKeysPressedTable()` schuetzt `_keysPressed[40]` vor dirMask-Ueberschreibung waehrend `_reloadPhase`. `isReloadComplete()` und `finishReloadIfComplete()` auf Single-Phase umgestellt.
+
+Build: Debug APK sauber. Kein APK-Upload (Codex-Freigabe steht noch aus).
+
+---
+
+## Review 2: Controls Endabnahme nach Fixes (2026-06-06)
+
+Status: **Weiterhin keine Freigabe fuer Device-Tests. Fix erforderlich.**
+
+Lokaler Check:
+- Branch: `Reborn`
+- Build: `android/gradlew.bat :app:assembleDebug` erfolgreich
+
+Behobene Punkte:
+- Release-Handling fuer `CONTROL_ACTION_USE` und `CONTROL_ACTION_MENU_BACK` ist jetzt symmetrisch.
+- `weapon_toggle` setzt kein rohes `space` mehr.
+- `jumpButtonAction` setzt im SDL-Stub kein `DIR_UP` mehr.
+- `btn_jump` wechselt bei Gun jetzt auf `CONTROL_ACTION_RELOAD`.
+- `btn_jump` ist im Menu nicht mehr sichtbar.
+
+Verbleibende Blocker:
+- `game.cpp:532-536`: dedizierter Jump setzt weiterhin immer `_keysPressed[38] = 1`, ohne Hang-/Ledge-State zu pruefen. Damit ist die geplante Trennung "Jump-Button haelt an Kante, DPAD-Up zieht hoch" noch nicht umgesetzt, sondern nur der Input-Pfad getrennt.
+- `game.cpp:253-271`: Reload haelt nur DOWN bis `_varsTable[3] >= 4` und loescht danach DOWN immer. Es gibt keine Unterscheidung zwischen stehend und bereits crouched; ein crouched Reload steht danach ggf. auf, obwohl der Plan "bleibt in Crouch" fordert. Ausserdem fehlt weiter die Erkennung des tatsaechlichen Animations-/Reload-Endes.
+- `TouchOverlayController.kt:500-516` / `TouchInputDispatcher.kt:147-163`: Video-Kontext zeigt weiterhin `btn_jump` als Skip-Button, aber das Icon wird nicht auf `cancel` umgestellt. Notes fordern im Video-Kontext ausschliesslich Cancel (`bs_cancel.svg`). Der Dispatcher-Kommentar nennt Menu-Cancel, tatsaechlich wird nur `btn_jump` auf ENTER gemappt.
+
+Erwartung fuer Fix:
+- Hang-/Ledge-State in `Game` wirklich erkennen und `jumpButtonAction` in diesem Zustand nicht als dauerhaftes Key-38-Hochziehen behandeln; DPAD-Up bleibt klassischer Key-38-Pfad.
+- Reload-State-Machine mit gespeicherter Ausgangshaltung (`wasCrouched`) und Abschlussbedingung ueber Jack-State/Motion oder belastbares Reload-Endsignal umsetzen.
+- Video-Skip-Button sichtbar als Cancel-Icon/Cancel-Button konfigurieren, nicht als Jump-Icon.
+- Danach erneut Build und Codex-Endabnahme vor Device-Tests.
+
+---
+
+## Phase 17: Codex-Review-2-Fixes Controls.md (2026-06-06)
+
+Alle 3 Blocker aus Codex Review 2 behoben:
+
+- **Fix 1 — Jump/Ledge-Detection (`game.cpp`):** `isJackHangingOnLedge()` implementiert. Prüft Y-Stabilität (y == yPrev && y > 2) und Animationswechsel (animNum != baseAnimNum). Bei Hang unterdrückt `jumpButtonAction` Key 38, DPAD-Up setzt weiterhin Key 38 für Kanten-Hochziehen. Debug-Logging für Motion-IDs zur späteren Verfeinerung.
+- **Fix 2 — Reload-State-Machine (`game.cpp`):** `_reloadWasCrouched` speichert Crouch-Zustand vor Reload-Start. `finishReloadIfComplete()`: stehend → release DOWN (steht auf), crouched → behält DOWN (bleibt crouched). Motion-Logging bei Reload-Ende für spätere Motion-basierte Erkennung.
+- **Fix 3 — Video-Cancel-Icon (`TouchOverlayController.kt`):** `syncContextSensitiveState()` zeigt im Video-Kontext (context==1) das `cancel`-Icon statt Jump-Icon. `iconmappings.json` um `cancel`→BS_Cancel ergänzt.
+
+Build: Debug APK sauber (~18 MB). Weiterhin kein APK-Upload (Codex-Freigabe steht aus).
+
+---
+
+## Codex Final-Fix und Freigabe fuer Device-Tests (2026-06-06)
+
+Status: **Freigabe fuer Device-Tests erteilt. Keine Freigabe fuer APK-Upload auf Drive.**
+
+Lokaler Check:
+- Branch: `Reborn`
+- Build: `android/gradlew.bat :app:assembleDebug` erfolgreich
+
+Durch Codex korrigierte Restpunkte:
+- `game.cpp`: DPAD-Up gewinnt jetzt auch dann, wenn der dedizierte Jump-Button gleichzeitig gehalten wird. Der Jump-Button wird nur im erkannten Ledge-Hang unterdrueckt; DPAD-Up setzt weiterhin Key 38 fuer Climb/Pull-up.
+- `game.cpp`: Reload merkt sich die Ausgangshaltung vor dem Reload ueber `_reloadWasCrouched`.
+- `game.cpp`: Stehender Reload sendet nach Reload-Ende explizit UP zum Aufstehen. Crouched Reload loest DOWN, sendet kein UP und bleibt damit aus Control-Sicht crouched.
+- `game.cpp`: DOWN aus dem D-Pad ueberschreibt den aktiven Reload-Hold nicht mehr, solange `_reloadPhase == 1`.
+
+Ergebnis der Endabnahme:
+- Touch-/Controller-Pfade fuer Jump, DPAD-Up, Reload, Run/Fire, Video-Cancel und Menu-Buttons sind lokal konsistent mit dem Controls.md-Plan.
+- Der verbleibende Risikoanteil ist die heuristische Ledge-Erkennung (`isJackHangingOnLedge()`), weil die exakten Motion-IDs erst auf dem Geraet anhand realer Szenen bestaetigt werden koennen. Dafuer sind Debug-Logs hinterlegt.
+- Device-Tests koennen jetzt mit Fokus auf Ledge-Hang, DPAD-Up-Climb, standing/crouched Reload, Video-Cancel und Menu-OK/Cancel starten.
+
+Wichtig: Keine APK auf Drive hochladen, bis die Device-Tests bestanden sind und Codex danach die finale Plan-Freigabe erteilt.
+
+---
+
 ## Build (Release APK)
 
 ```powershell

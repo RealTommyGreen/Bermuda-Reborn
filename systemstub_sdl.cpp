@@ -292,8 +292,6 @@ void SystemStub_SDL::applyAction(int action, bool pressed) {
 	switch (action) {
 	case kActionJump:
 		_pi.jumpButtonAction = pressed;
-		if (pressed) _pi.dirMask |= PlayerInput::DIR_UP;
-		else        _pi.dirMask &= ~PlayerInput::DIR_UP;
 		break;
 	case kActionRun:
 		_pi.runAction = pressed;
@@ -301,7 +299,6 @@ void SystemStub_SDL::applyAction(int action, bool pressed) {
 		break;
 	case kActionWeapon:
 		_pi.weaponToggleAction = pressed;
-		_pi.space = pressed;
 		break;
 	case kActionUse:
 		_pi.enter = pressed;
@@ -332,20 +329,15 @@ void SystemStub_SDL::performControlAction(int action, bool pressed) {
 		break;
 	case CONTROL_ACTION_JUMP_BUTTON:
 		_pi.jumpButtonAction = pressed;
-		if (pressed) _pi.dirMask |= PlayerInput::DIR_UP;
-		else        _pi.dirMask &= ~PlayerInput::DIR_UP;
 		break;
 	case CONTROL_ACTION_WEAPON_TOGGLE:
-		if (pressed) {
-			_pi.weaponToggleAction = true;
-			_pi.space = true;
-		}
+		if (pressed) _pi.weaponToggleAction = true;
 		break;
 	case CONTROL_ACTION_USE:
-		if (pressed) _pi.enter = true;
+		_pi.enter = pressed;
 		break;
 	case CONTROL_ACTION_MENU_BACK:
-		if (pressed) _pi.escape = true;
+		_pi.escape = pressed;
 		break;
 	case CONTROL_ACTION_RELOAD:
 		_pi.reloadAction = pressed;

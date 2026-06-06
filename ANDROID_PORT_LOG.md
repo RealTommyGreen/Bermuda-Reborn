@@ -503,6 +503,70 @@ Naechste Session starten mit:
 
 ---
 
+## Device-Test-Fix 8: Weapon-Auswahl nach Holster stabilisiert (2026-06-06)
+
+Status: **Fix umgesetzt, Release-APK gebaut und per ADB fuer Device-Test installiert. Noch nicht am Device durchgespielt. Keine Freigabe fuer APK-Upload auf Drive.**
+
+Ausgangspunkt:
+- Nach Inventarwechsel auf Schwert zog der Weapon-Button einmal korrekt das Schwert.
+- Nach Schwert-Holster zog der naechste Weapon-Tap wieder das Gewehr.
+- Schnelle Weapon-Taps konnten den Touch-/Control-State mehrfach umschalten, waehrend die Engine-Animation noch nicht stabil war.
+
+Ursache:
+- `handleWeaponToggle()` sicherte beim Holstern die Auswahl aus `_varsTable[1/2] == 1`. Diese Originalscript-Werte koennen nach oder waehrend Holster wieder auf Gewehr kippen.
+- Es gab keinen Busy-/Pending-State fuer Weapon-Toggle; jeder Tap konnte sofort einen neuen logischen Draw/Holster-State committen.
+
+Fix:
+- `game.cpp`: Beim Holstern gewinnt jetzt der eigene Control-Drawn-State (`_controlSwordDrawn`/`_controlGunDrawn`) fuer `_controlSelectedWeapon`, nicht der eventuell stale Originalscript-State.
+- `game.cpp`/`game.h`: `_weaponToggleBusyFrames` und `_pendingWeaponToggle` eingefuehrt. Neue Weapon-Taps waehrend des kurzen Busy-Fensters werden gepuffert und erst danach ausgefuehrt.
+- `game.cpp`: Frame-Sync des Drawn-State uebernimmt `_varsTable[1/2] == 1` nur noch, wenn nicht beide Weapon-Vars gleichzeitig als aktiv wirken. Das verhindert unnoetiges Zurueckkippen bei widerspruechlichen Script-Zwischenwerten.
+
+Lokaler Check:
+- Branch: `Reborn`
+- Build: `android/gradlew.bat :app:assembleDebug` erfolgreich
+- Build: `android/gradlew.bat :app:assembleRelease` erfolgreich
+- Release-APK: `android/app/build/outputs/apk/release/app-release.apk`, 19,034,417 Bytes
+- ADB: Geraet `DEVICE_SERIAL` verbunden
+- Installation: `adb install -r android/app/build/outputs/apk/release/app-release.apk` erfolgreich
+
+Erwartung fuer naechsten Device-Test:
+- Holstered: im Inventar Schwert waehlen, bestaetigen, Weapon zieht Schwert.
+- Schwert holstern, danach Weapon erneut druecken: Es muss wieder Schwert gezogen werden, nicht Gewehr.
+- Schnelle mehrfache Weapon-Taps waehrend Draw/Holster duerfen den sichtbaren/spielbaren State nicht mehr durcheinanderbringen; hoechstens ein Pending-Toggle wird nach dem Busy-Fenster nachgezogen.
+
+---
+
+## Device-Test-Fix 9: Inventar-Hitbox und Weapon-State-Authority (2026-06-06)
+
+Status: **Nach Nutzerfeedback umgesetzt, Debug/Release gebaut, Release-APK per ADB installiert und vom Nutzer am Device als zuverlaessig funktionierend bestaetigt. Keine Freigabe fuer APK-Upload auf Drive.**
+
+Ausgangspunkt nach Fix 8:
+- Inventarwechsel auf Schwert zog beim ersten Weapon-Tap einmal das Schwert.
+- Nach Schwert-Holster zog der naechste Weapon-Tap wieder das Gewehr.
+- Im Inventar wurde Schwert nicht sichtbar mit dem blinkenden Punkt markiert; Gewehr blieb markiert.
+
+Ursachen:
+- `bag.cpp`: Touch-Hitboxen fuer Gun/Sword nutzten harte Y-Konstanten (`22`/`37`), waehrend die Icons bottom-basiert gezeichnet werden. Dadurch traf ein sichtbarer Schwert-Tap nicht zuverlaessig die Schwert-Auswahl.
+- `game.cpp`: Der armed Frame-Sync konnte `_controlSelectedWeapon` und `_control*Drawn` aus `_varsTable[1/2]` wieder auf Gewehr drehen, obwohl der Touch-Control-State gerade Schwert ausgewaehlt hatte.
+
+Fix:
+- `bag.cpp`: Weapon-Hitboxen werden jetzt aus denselben Icon-Rechtecken berechnet, die `drawBagMenu()` zum Zeichnen nutzt. Schwert wird vor Gewehr geprueft.
+- `bag.cpp`: Inventarwechsel bei gezogener Waffe aktualisiert auch `_controlGunDrawn/_controlSwordDrawn`.
+- `game.cpp`: Armed-State wird nicht mehr pro Frame aus `_varsTable[1/2]` zurueckgesynct. `_controlSelectedWeapon` bleibt nach expliziter Touch-/Inventarauswahl authoritative.
+
+Lokaler Check:
+- Build: `android/gradlew.bat :app:assembleDebug` erfolgreich
+- Build: `android/gradlew.bat :app:assembleRelease` erfolgreich
+- Installation: `adb install -r android/app/build/outputs/apk/release/app-release.apk` erfolgreich auf `DEVICE_SERIAL`
+- Device-Test: Nutzer bestaetigt, dass Schwert-Auswahl, Schwert-Draw, Holster und erneuter Schwert-Draw jetzt zuverlaessig funktionieren.
+
+Abgenommener Device-Repro:
+- Im Inventar muss ein Tap auf das sichtbare Schwert den blinkenden Punkt vor Schwert setzen.
+- Nach Schwert-Auswahl muss Weapon Schwert ziehen.
+- Nach Schwert-Holster muss der naechste Weapon-Tap wieder Schwert ziehen, nicht Gewehr.
+
+---
+
 ## Build (Release APK)
 
 ```powershell

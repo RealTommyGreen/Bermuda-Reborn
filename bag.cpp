@@ -48,21 +48,30 @@ void Game::handleBagMenu() {
 				}
 			}
 			// weapons area
-			if (xPos >= 22 && xPos < getBitmapWidth(_weaponIconImageTable[0]) + 22) {
-				if (yPos >= 22 && yPos < getBitmapHeight(_weaponIconImageTable[0]) + 22) {
-					if (_varsTable[1] != 0 && _varsTable[2] != 0) { // switch to gun
-						_varsTable[2] = 1;
-						_varsTable[1] = 2;
-						_controlSelectedWeapon = 2;
+			if (_varsTable[1] != 0 && _varsTable[2] != 0) {
+				const int gunIconIndex = MIN(13 - _varsTable[4], 13);
+				uint8_t *gunIcon = _weaponIconImageTable[gunIconIndex];
+				const int gunX = 22;
+				const int gunY = _bagBackgroundImage.h - (_isDemo ? 19 : 21) - getBitmapHeight(gunIcon);
+				const int swordX = 22;
+				const int swordY = _bagBackgroundImage.h - 36 - getBitmapHeight(_swordIconImage);
+				if (xPos >= swordX && xPos < swordX + getBitmapWidth(_swordIconImage) &&
+					yPos >= swordY && yPos < swordY + getBitmapHeight(_swordIconImage)) { // switch to sword
+					_varsTable[2] = 2;
+					_varsTable[1] = 1;
+					_controlSelectedWeapon = 1;
+					if (_controlGunDrawn || _controlSwordDrawn) {
+						_controlGunDrawn = false;
+						_controlSwordDrawn = true;
 					}
-				}
-			}
-			if (xPos >= 22 && xPos < getBitmapWidth(_swordIconImage) + 22) {
-				if (yPos >= 37 && yPos < getBitmapHeight(_swordIconImage) + 37) {
-					if (_varsTable[2] != 0 && _varsTable[1] != 0) { // switch to sword
-						_varsTable[2] = 2;
-						_varsTable[1] = 1;
-						_controlSelectedWeapon = 1;
+				} else if (xPos >= gunX && xPos < gunX + getBitmapWidth(gunIcon) &&
+					yPos >= gunY && yPos < gunY + getBitmapHeight(gunIcon)) { // switch to gun
+					_varsTable[2] = 1;
+					_varsTable[1] = 2;
+					_controlSelectedWeapon = 2;
+					if (_controlGunDrawn || _controlSwordDrawn) {
+						_controlGunDrawn = true;
+						_controlSwordDrawn = false;
 					}
 				}
 			}

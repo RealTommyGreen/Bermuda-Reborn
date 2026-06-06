@@ -136,6 +136,8 @@ void Game::restart() {
 	_controlGunDrawn = false;
 	_controlSwordDrawn = false;
 	_controlSelectedWeapon = 0;
+	_weaponToggleBusyFrames = 0;
+	_pendingWeaponToggle = false;
 	_reloadPhase = 0;
 	_reloadFrameCounter = 0;
 	_reloadWasCrouched = false;
@@ -240,10 +242,11 @@ bool Game::isSwordDrawn() const {
 }
 
 void Game::handleWeaponToggle() {
+	bool toggleStarted = false;
 	if (isJackArmed()) {
-		if (_varsTable[1] == 1) {
+		if (_controlSwordDrawn) {
 			_controlSelectedWeapon = 1;
-		} else if (_varsTable[2] == 1) {
+		} else if (_controlGunDrawn) {
 			_controlSelectedWeapon = 2;
 		}
 	}
@@ -253,6 +256,7 @@ void Game::handleWeaponToggle() {
 		_keysPressed[32] = 0;
 		_controlGunDrawn = false;
 		_controlSwordDrawn = false;
+		toggleStarted = true;
 	} else if (_varsTable[2] >= 1 || _varsTable[1] >= 1) {
 		if (_controlSelectedWeapon == 1 && _varsTable[1] != 0) {
 			_varsTable[1] = 1;
@@ -272,6 +276,10 @@ void Game::handleWeaponToggle() {
 		_keysPressed[16] = 0;
 		_controlGunDrawn = _controlSelectedWeapon == 2;
 		_controlSwordDrawn = _controlSelectedWeapon == 1;
+		toggleStarted = true;
+	}
+	if (toggleStarted) {
+		_weaponToggleBusyFrames = 12;
 	}
 }
 
@@ -580,22 +588,22 @@ void Game::updateKeysPressedTable() {
 	}
 
 	// -- Weapon toggle --
-	const bool weaponToggleRequested = _stub->_pi.weaponToggleAction;
+	bool weaponToggleRequested = _stub->_pi.weaponToggleAction;
 	if (_stub->_pi.weaponToggleAction) {
 		_stub->_pi.weaponToggleAction = false;
 	}
-
-	if (_controlGunDrawn || _controlSwordDrawn) {
-		if (_varsTable[1] == 1) {
-			_controlSelectedWeapon = 1;
-			_controlGunDrawn = false;
-			_controlSwordDrawn = true;
-		} else if (_varsTable[2] == 1) {
-			_controlSelectedWeapon = 2;
-			_controlGunDrawn = true;
-			_controlSwordDrawn = false;
+	if (_weaponToggleBusyFrames > 0) {
+		--_weaponToggleBusyFrames;
+		if (weaponToggleRequested) {
+			_pendingWeaponToggle = true;
+			weaponToggleRequested = false;
 		}
-	} else if (_controlSelectedWeapon == 0) {
+	} else if (_pendingWeaponToggle) {
+		_pendingWeaponToggle = false;
+		weaponToggleRequested = true;
+	}
+
+	if (_controlSelectedWeapon == 0) {
 		if (_varsTable[1] == 1) {
 			_controlSelectedWeapon = 1;
 		} else if (_varsTable[2] == 1) {

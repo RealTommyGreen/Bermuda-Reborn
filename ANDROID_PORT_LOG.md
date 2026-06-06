@@ -777,22 +777,19 @@ Ergebnis:
 
 ## Offene technische Bugs fuer naechsten Fix-Pass (2026-06-06)
 
-Status: **Bug 1, 2 & 4 behoben, Bug 3 & 5 noch offen.**
+Status: **Bug 1, 3 & 4 behoben. Bug 2 (Randszenario offen, s.u.) & Bug 5 noch offen.**
 
 ### 3. Overlay-Set-Wechsel reagiert zu traege
 
-Symptom:
-- Wechsel zwischen Gameplay/Menu oder Gameplay/Inventar fuehlt sich leicht verzoegert an.
-- Die Button-Sets und Icons erscheinen erst nach dem naechsten Polling-Intervall.
+Status: **Behoben (2026-06-06).**
 
-Fix-Anweisung:
-- Aktuell laeuft der Kontextabgleich im Overlay polling-basiert (`CONTEXT_SYNC_INTERVAL_MS`, derzeit 250 ms).
-- Intervall reduzieren oder, besser, Kontextwechsel eventnah triggern:
-  - Native/SDL kann bei Statewechseln eine Java-Sync-Anforderung ausloesen, oder
-  - Android kann beim naechsten Frame/Touch-Loop kurzfristig sofort `syncContextSensitiveState()` ausfuehren, wenn sich `nativeGetTouchInputContext()` geaendert hat.
-- Falls Polling bleibt, testweise auf 50-100 ms senken und Performance/CPU auf Geraet pruefen.
-- Wichtig: Button-Positionen beim Wechsel weiter korrekt aus `buttons` vs. `menu_buttons` laden und keine Drag-/Save-Operationen durch schnellere Syncs verlieren.
-- Regressionstest: Hauptmenue -> Gameplay, Gameplay -> Inventar, Inventar -> Gameplay und Video/Menu-Confirm pruefen; sichtbares Button-Set sollte ohne wahrnehmbare Verzoegerung wechseln.
+Fix:
+- `CONTEXT_SYNC_INTERVAL_MS` von 250ms auf 80ms reduziert (polling-basierter Abgleich).
+- `requestImmediateContextSync()` hinzugefuegt: loest sofortigen Sync aus, wenn User einen Overlay-Button beruehrt (ACTION_DOWN/UP), auf die Game-Canvas tippt oder das Overlay aus dem Store neu laedt.
+- `TouchOverlayButtonView` erhielt einen `onInteraction`-Callback, der bei jedem Touch-Event (Down/Up) den Immediate-Sync triggert.
+- Kein spuerbarer CPU-Impact auf dem Testgeraet bei 80ms-Intervall.
+
+Geaenderte Dateien: `TouchOverlayController.kt`, `TouchOverlayButtonView.kt`
 
 ### 4. Video-Skip-Button soll deckungsgleich mit Menu-Zurueck liegen
 
@@ -827,6 +824,35 @@ Fix-Anweisung:
   - Falls Jack bereits im Reload-/Crouch-Reload-State ist, muss der Cheat-Pfad die Reload-Action beenden und optional automatisch den normalen Crouch/Stand-State wieder freigeben, statt auf D-Pad-Up angewiesen zu sein.
 - Pruefen, ob der Loop durch dauerhaft gesetztes DOWN/Reload-Signal oder durch eine Ammo-Endbedingung entsteht, die bei Unlimited Ammo nie erreicht wird.
 - Regressionstest: Cheat aktivieren, Gun ziehen, schiessen, HUD pruefen, Reload druecken. Jack darf nicht in Reload loopen; HUD soll nicht irrefuehrend `1/6` anzeigen.
+
+---
+
+## Untersuchung: Weapon-Icon-Race bei Exit-Animationen (2026-06-06, Claude Code Session)
+
+**Randszenario zu Bug 2:** Nach dem `engineControlState()`-Fix (Cross-Check `_varsTable` + `_weaponToggleDrawRequested`) funktioniert der Weapon-Toggle im Stillstand korrekt. Beim Tappen des Weapon-Buttons waehrend Jacks Auslauf-Animationen (Renn-Slide, Sprung-Landung) schaltet das Overlay jedoch weiterhin faelschlich auf Fire/Sword-Icons, obwohl die Waffe nicht gezogen wird.
+
+**User-Beobachtung (nicht in Logs reproduziert):**
+- 4-Tap-Sequenz aus dem Rennen: Tap 1 (Weapon) → Overlay zeigt Fire, Waffe nicht gezogen; Tap 2 (Weapon) → Overlay zeigt Run; Tap 3 (Weapon) → Waffe korrekt gezogen, Fire; Tap 4 (Weapon) → Waffe korrekt weggesteckt, Run.
+- Wenn nach Tap 1 der Fire-Button gedrueckt wird, zieht Jack tatsaechlich die Waffe und schiesst — das Overlay war also "richtig falsch" (das Fire-Icon loeste die korrekte Draw+Fire-Aktion aus).
+
+**ICON-TRACE-Stacktrace-Analyse (20:21:36–20:21:40):**
+- Saemtliche Icon-Wechsel auf `btn_run` laufen AUSSCHLIESSLICH ueber `syncContextSensitiveState()`:
+  - `applyLayoutConfigToView` (line 571) setzt `icon=run` vom Layout-Config
+  - ICON-SWITCH (line 580) setzt `icon=fire`, wenn `gunDrawn=true`
+- Kein versteckter zweiter Pfad — `TouchOverlayButtonView.updateConfig()` wird nur aus diesen beiden Stellen aufgerufen.
+- Der `changed=false` Early-Return verhindert Icon-Updates korrekt, wenn sich context/gunDrawn/swordDrawn nicht geaendert haben.
+
+**Erkenntnisse:**
+1. Der Icon-Switch-Mechanismus auf Kotlin-Seite ist korrekt — es gibt keinen "Geister-Pfad".
+2. Wenn das Fire-Icon faelschlich erscheint, MUSS `engineControlState()` dafuer `GUN_DRAWN=true` gemeldet haben.
+3. Der `_weaponToggleDrawRequested`/`_weaponToggleBusyFrames`-Gate im aktuellen `engineControlState()`-Fix deckt das Busy-Window ab, aber moeglicherweise nicht den Fall, dass die Engine den Weapon-Toggle waehrend einer Exit-Animation verarbeitet (trotz dass sie es nicht sollte).
+4. Der Bug trat in der letzten Test-Session NICHT auf — alle 4 Taps zeigten korrektes `gunDrawn`-Verhalten. Das spricht fuer eine Timing-/Frame-abhaengige Race-Condition.
+
+**Offene Hypothese fuer Codex:**
+- `handleWeaponToggle()` wird in `updateKeysPressedTable()` aufgerufen. Wenn Jack in einer Exit-Animation ist, sollte die Engine den Toggle ignorieren, aber moeglicherweise wird `_weaponToggleDrawRequested` trotzdem gesetzt, bevor die Animation-Check-Logik greift.
+- Zu pruefen: Wird `_weaponToggleDrawRequested` jemals auf `true` gesetzt, ohne dass `_weaponToggleBusyFrames` im selben Frame auf 12 geht? Wenn ja, koennte `confirmedWeaponToggleIdle = (_weaponToggleBusyFrames == 0 && !_weaponToggleDrawRequested)` true bleiben und `isGunDrawn()` (via `_controlGunDrawn` aus einem vorherigen State) false-positive liefern.
+- Alternativ: Setzt irgendein Codepfad `_controlGunDrawn` direkt ohne den `_weaponToggleDrawRequested`-Mechanismus?
+- Empfehlung: `nativeGetControlState()`-JNI-Aufruf mit Frame-Counter loggen und bei faelschlichem Fire-Icon den exakten `engineControlState()`-Rueckgabewert + `_weaponToggleDrawRequested` + `_weaponToggleBusyFrames` + `_controlGunDrawn` ausgeben.
 
 ---
 

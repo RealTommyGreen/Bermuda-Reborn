@@ -16,7 +16,8 @@ class TouchOverlayButtonView(
     private val dispatcher: TouchInputDispatcher,
     private val dragCallback: (String) -> Unit,
     private val longPressCallback: (TouchButtonConfig) -> Unit,
-    draggable: Boolean = false
+    draggable: Boolean = false,
+    private val onInteraction: (() -> Unit)? = null
 ) : View(context) {
 
     private var buttonConfig: TouchButtonConfig = initialConfig
@@ -88,6 +89,7 @@ class TouchOverlayButtonView(
                 if (canDispatchInput() && isDpad && isHoldMode) updateDpadDirection(event.x, event.y)
                 else if (canDispatchInput() && isHoldMode) dispatchActions(true)
                 else if (canDispatchInput()) dispatchActions(true)
+                onInteraction?.invoke()
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
@@ -125,6 +127,7 @@ class TouchOverlayButtonView(
                     else -> setPressedState(false)
                 }
                 isDragging = false; isLongPress = false
+                onInteraction?.invoke()
                 return true
             }
             MotionEvent.ACTION_POINTER_DOWN -> {

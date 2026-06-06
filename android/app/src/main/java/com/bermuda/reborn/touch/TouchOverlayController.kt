@@ -109,6 +109,7 @@ class TouchOverlayController(
             syncGlobalConfigToButtonViews()
             updateButtonDraggable()
             updateSchlossButtonState()
+            requestImmediateContextSync()
         }
     }
 
@@ -285,6 +286,7 @@ class TouchOverlayController(
             if (!isTouchOnAnyButton(x, y)) {
                 val action = if (event.action == MotionEvent.ACTION_DOWN) 0 else 1
                 SDLActivity.onNativeMouse(android.view.MotionEvent.BUTTON_PRIMARY, action, x, y, false)
+                requestImmediateContextSync()
             }
         }
         return false
@@ -339,7 +341,8 @@ class TouchOverlayController(
         for (btnConfig in cfg.buttons) {
             if (!btnConfig.visible) continue
             val buttonView = TouchOverlayButtonView(container.context, btnConfig, dispatcher,
-                { onButtonPositionChanged(it) }, { onButtonLongPress(it) }, draggable = !cfg.layoutLocked)
+                { onButtonPositionChanged(it) }, { onButtonLongPress(it) }, draggable = !cfg.layoutLocked,
+                onInteraction = { requestImmediateContextSync() })
             buttonView.alpha = btnConfig.alpha
             buttonView.setSnapGridSize(if (cfg.layoutLocked) 0 else gridSizePx())
             val (bw, bh) = dimensionsFor(btnConfig, minDim)
@@ -522,6 +525,13 @@ class TouchOverlayController(
         contextSyncRunnable = null
     }
 
+    fun requestImmediateContextSync() {
+        if (!contextSyncRunning) return
+        root.removeCallbacks(contextSyncRunnable)
+        syncContextSensitiveState()
+        scheduleContextSync()
+    }
+
     private fun scheduleContextSync() {
         if (!contextSyncRunning) return
         contextSyncRunnable = Runnable {
@@ -681,6 +691,6 @@ class TouchOverlayController(
         private const val SYSTEM_BUTTON_SIZE_DP = 44
         private const val RECTANGLE_WIDTH_FACTOR = 1.55f
         private const val GRID_SIZE_DP = 16
-        private const val CONTEXT_SYNC_INTERVAL_MS = 250L
+        private const val CONTEXT_SYNC_INTERVAL_MS = 80L
     }
 }

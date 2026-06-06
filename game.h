@@ -359,6 +359,7 @@ struct Game {
 	// menu.cpp
 	void initMenu(int num);
 	void finiMenu();
+	void discardTransientMenuObjects();
 	void handleMenu();
 	void handleSlotMenu(bool loadMode);
 	void drawSlotMenu(bool loadMode);

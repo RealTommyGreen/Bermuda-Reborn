@@ -187,6 +187,17 @@ static void load_bagObjects(BagObject *bo, int &count) {
 	}
 }
 
+static int getPersistentSceneObjectsCount(const Game *g) {
+	if (g->_state == kStateMenu1 || g->_state == kStateMenu2) {
+		return g->_menuObjectCount;
+	}
+	int count = g->_sceneObjectsCount;
+	while (count > 0 && strcmp(g->_sceneObjectsTable[count - 1].name, "MENU") == 0) {
+		--count;
+	}
+	return count;
+}
+
 void Game::saveState(File *f, int slot) {
 	_saveOrLoadStream = f;
 	_saveOrLoadMode = kSaveMode;
@@ -197,8 +208,9 @@ void Game::saveState(File *f, int slot) {
 	}
 	assert(strchr(_currentSceneScn, '\\') == 0);
 	saveOrLoadStr(_currentSceneScn, -2);
-	saveInt16(_sceneObjectsCount);
-	for (int i = 0; i < _sceneObjectsCount; ++i) {
+	const int sceneObjectsCount = getPersistentSceneObjectsCount(this);
+	saveInt16(sceneObjectsCount);
+	for (int i = 0; i < sceneObjectsCount; ++i) {
 		saveOrLoad_sceneObject(_sceneObjectsTable[i]);
 	}
 	saveInt16(NUM_BOXES);
@@ -250,6 +262,7 @@ void Game::loadState(File *f, int slot, bool switchScene) {
 	for (int i = 0; i < _sceneObjectsCount; ++i) {
 		saveOrLoad_sceneObject(_sceneObjectsTable[i]);
 	}
+	discardTransientMenuObjects();
 	n = loadInt16();
 	assert(n <= NUM_BOXES);
 	for (int i = 0; i < n; ++i) {

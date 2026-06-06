@@ -547,9 +547,13 @@ class TouchOverlayController(
             BermudaActivity.nativeGetTouchInputContext()
         } catch (e: UnsatisfiedLinkError) { 0 }
 
-        val controlState = try {
-            BermudaActivity.nativeGetControlState()
-        } catch (e: UnsatisfiedLinkError) { 0 }
+        val controlState = if (context == 0) {
+            try {
+                BermudaActivity.nativeGetControlState()
+            } catch (e: UnsatisfiedLinkError) { 0 }
+        } else {
+            0
+        }
         val gunDrawn = (controlState and 1) != 0     // CONTROL_STATE_GUN_DRAWN
         val swordDrawn = (controlState and 2) != 0    // CONTROL_STATE_SWORD_DRAWN
 

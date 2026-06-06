@@ -356,6 +356,9 @@ void SystemStub_SDL::setTouchDirectionMask(uint8_t dirMask) {
 }
 
 int SystemStub_SDL::getControlState() const {
+	if (!g_gameStatePtr || *g_gameStatePtr != kStGame) {
+		return 0;
+	}
 	if (g_game) {
 		return g_game->engineControlState();
 	}

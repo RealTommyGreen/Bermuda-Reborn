@@ -72,6 +72,7 @@ static void drawThumbnailFrame(SystemStub *stub, int x, int y, int w, int h, uin
 }
 
 void Game::initMenu(int num) {
+	discardTransientMenuObjects();
 	_menuOption = -1;
 	_menuHighlight = -1;
 	_menuObjectCount = _sceneObjectsCount;
@@ -94,6 +95,27 @@ void Game::initMenu(int num) {
 	_stub->setPalette(_bitmapBuffer0 + kOffsetBitmapPalette, 256);
 	_stub->copyRectWidescreen(kGameScreenWidth, kGameScreenHeight, _bitmapBuffer1.bits, _bitmapBuffer1.pitch);
 	_stub->showCursor(true);
+}
+
+void Game::discardTransientMenuObjects() {
+	int removed = 0;
+	for (int i = 0; i < _sceneObjectsCount; ++i) {
+		SceneObject *so = &_sceneObjectsTable[i];
+		if (strcmp(so->name, "MENU") != 0) {
+			continue;
+		}
+		so->state = 0;
+		snprintf(so->name, sizeof(so->name), "_MENU_STALE_%d", i);
+		so->className[0] = 0;
+		memset(so->varsTable, 0, sizeof(so->varsTable));
+		++removed;
+	}
+	while (_sceneObjectsCount > 0 && strncmp(_sceneObjectsTable[_sceneObjectsCount - 1].name, "_MENU_STALE_", 12) == 0) {
+		--_sceneObjectsCount;
+	}
+	if (removed != 0) {
+		warning("Discarded %d stale transient MENU object(s)", removed);
+	}
 }
 
 void Game::finiMenu() {

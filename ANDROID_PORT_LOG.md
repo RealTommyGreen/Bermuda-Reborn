@@ -896,3 +896,104 @@ android/app/src/main/java/com/bermuda/reborn/
 - MIDI playback with TSF/TML untested on real Android hardware
 - SAF import speed on low-end devices unknown
 - Controller tested via emulator smoke only
+
+---
+
+## Bug 6: ESC/Menu crasht nach Quickload (NICHT BEHOBEN, 2026-06-06)
+
+**Status:** OFFEN — Claude Code Debug-Session, alle Fix-Ansätze gescheitert.
+
+**Symptom:**
+Quickload (F7/Quickload-Button) → ESC/Menu-Button → App crasht zurück zum Android-Launcher.
+Ohne Quickload crasht ESC/Menu nicht.
+
+**Crash-Signatur:**
+```
+FORTIFY: pthread_mutex_lock called on a destroyed mutex (0x7f0c802ae8)
+Fatal signal 6 (SIGABRT) in tid N (hwuiTask0), pid M (SDLActivity)
+```
+Immer dieselbe Mutex-Adresse `0x7f0c802ae8`. Der Crash passiert in `libhwui.so` (Android Hardware UI Renderer), nicht in unserem Code oder SDL.
+
+Zwei Threads crashen gleichzeitig, beide mit demselben Stacktrace:
+```
+#02 libc.so    abort
+#05 libc.so    pthread_mutex_lock
+#06 libc.so    pthread_cond_wait
+#07 libc++.so  std::condition_variable::wait
+#08 libhwui.so+0x2d97d4  (<— Android HWUI Worker Thread)
+#09 libc.so    (thread start)
+```
+
+**Root Cause (Hypothese):**
+`initMenu()` nach Quickload triggert eine Race-Condition in Androids `libhwui.so`.
+`initMenu()` → `loadWGP()` überschreibt `_bitmapBuffer1`-Pointer und ruft `setPalette()` auf.
+Wenn `libhwui`-Threads parallel noch auf die alten Buffer/Paletten zugreifen, wird ein
+interner Mutex zerstört. Der `updateScreen()`-Call nach dem Scene-Reload reicht nicht,
+um die Pipeline zu synchronisieren.
+
+**Bereits probiert (alle gescheitert):**
+
+1. **Defensive MENU-Objekt-Bereinigung in `initMenu()`** (`menu.cpp`)
+   - Entfernt stale MENU-Objekte vor dem Menü-Laden.
+   - Resultat: Kein Effekt, Crash blieb.
+
+2. **`loadState()`: `_sceneObjectsCount` clippen** (`saveload.cpp`)
+   - Verhindert dass Save-Files mit überhöhtem Object-Count die Szene korrumpieren.
+   - Resultat: Der ursprüngliche "Duplicate object name MENU"-Bug war damit behoben,
+     aber stattdessen kam der `libhwui`-Mutex-Crash.
+
+3. **`stopMusic()` im `loadState()` deaktiviert** (`saveload.cpp`)
+   - Test ob SDL_mixer Audio-Mutex-Operationen den Crash verursachen.
+   - Resultat: Kein Effekt, Crash blieb.
+
+4. **ESC im Quickload-Frame unterdrücken** (`game.cpp` `updateKeysPressedTable`)
+   - `_stub->_pi.escape = false` direkt nach Quickload.
+   - Resultat: Kein Effekt.
+
+5. **`updateScreen()`-Flush nach Scene-Reload** (`game.cpp` `_switchScene`-Block)
+   - Extra `_stub->updateScreen()` nach Scene-Wechsel zur Pipeline-Synchronisation.
+   - Resultat: Kein Effekt.
+
+6. **Menu-Öffnen per Frame-Lockout verzögern** (`game.cpp`, `game.h`)
+   - `_quickloadEscapeLockout = 3` nach Quickload, decrement pro Frame,
+     Menu-Init erst bei Lockout == 0 (nach 3 Frames).
+   - Resultat: Kein Effekt, selbst nach 1 Minute Warten crasht ESC.
+
+7. **Menu komplett unterdrückt (Test)** (`game.cpp`)
+   - `_nextState = kStateMenu1` auskommentiert → kein Crash.
+   - Beweist: Der Crash-Trigger ist definitiv `initMenu()` nach Quickload.
+
+**Empfehlung für Codex:**
+- Der Crash liegt in `libhwui.so` (Android-System-Library), nicht in Bermuda/SDL-Code.
+- Möglicher Ansatz: `initMenu()` so umbauen, dass `_bitmapBuffer1`-Pointer nicht
+  überschrieben werden. Statt `loadWGP()` → `_bitmapBuffer1.bits = _bitmapBuffer2`
+  könnte ein separater Menu-Bitmap-Buffer verwendet werden.
+- Alternativ: Nach Quickload State-Wechsel zu Menu um 1-2 komplette Frames
+  (inkl. `updateScreen()` + `processEvents()`) verzögern — nicht nur `_nextState`,
+  sondern den State-Wechsel-Mechanismus selbst pausieren.
+- SDL2-Version prüfen: SDL 2.30+ hat Fixes für Android Surface/EGL-Handling.
+- Möglicher Workaround: Nach Quickload `_state` nicht direkt auf `kStateMenu1`
+  setzen, sondern einen Zwischen-State einfügen der nur rendert und Events
+  verarbeitet, ohne `initMenu()` aufzurufen.
+
+---
+
+## Bugfix: ESC/Menu-Crash nach Quickload (2026-06-06)
+
+Status: **Behoben, Release-APK per ADB installiert und vom Nutzer am Device als funktionierend bestaetigt.**
+
+Ursache:
+- Der sichtbare `libhwui`/destroyed-mutex-Crash war nur ein Folgeabsturz nach Engine-Abbruch.
+- Direkt vor dem Crash stand im Log: `ERROR: Duplicate object name MENU!`.
+- SaveStates konnten ein temporaeres Menue-Objekt `MENU` enthalten. Nach Quickload blieb dieses Objekt im Gameplay-State erhalten; beim naechsten ESC lud `initMenu()` `menu1.mov` und erzeugte ein zweites Objekt mit demselben Namen.
+
+Fix:
+- `saveload.cpp`: SaveStates aus Menue-Kontexten schreiben nur noch die echte Gameplay-Objektanzahl (`_menuObjectCount`), nicht das temporaer angehaengte Menue-Objekt.
+- `menu.cpp`/`game.h`: `discardTransientMenuObjects()` eingefuehrt. Beim Laden alter/korrupter SaveStates und vor `initMenu()` werden vorhandene `MENU`-Objekte deaktiviert und umbenannt, damit alte Slots nicht mehr crashen.
+- `TouchOverlayController.kt`/`systemstub_sdl.cpp`: `nativeGetControlState()` wird nur noch im Gameplay-Kontext abgefragt bzw. native-seitig nur fuer `kStateGame` beantwortet, um unnoetige Cross-Thread-Engine-Zugriffe im Menue zu vermeiden.
+
+Device-Verifikation:
+- Release-APK gebaut und per `adb install -r` installiert.
+- Repro-Pfad getestet: Start -> Quickload Slot 1 -> ESC/Menu.
+- Logcat: `WARNING: Discarded 1 stale transient MENU object(s)!`
+- Kein `Duplicate object name MENU`, kein `FORTIFY`, kein `Fatal signal` nach dem Fix.

@@ -13,5 +13,6 @@
   "cancel_action": "BS_Cancel",
   "fire": "BS_Fire",
   "reload": "BS_Reload",
-  "sword": "BS_Sword"
+  "sword": "BS_Sword",
+  "lock": "Lock_Button"
 }

@@ -3,7 +3,7 @@ package com.bermuda.reborn.touch
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-const val TOUCH_OVERLAY_CONFIG_VERSION = 10
+const val TOUCH_OVERLAY_CONFIG_VERSION = 11
 const val CONTROLLER_CONFIG_VERSION = 1
 
 const val SCREEN_MODE_4_3 = 0
@@ -15,6 +15,7 @@ data class TouchOverlayConfig(
     val enabled: Boolean = true,
     @SerialName("layout_locked") val layoutLocked: Boolean = true,
     val buttons: List<TouchButtonConfig> = emptyList(),
+    @SerialName("menu_buttons") val menuButtons: List<TouchButtonConfig> = emptyList(),
     @SerialName("dpad_double_tap_run_enabled") val dpadDoubleTapRunEnabled: Boolean = true,
     @SerialName("cheat_god_mode") val cheatGodMode: Boolean = false,
     @SerialName("cheat_infinite_ammo") val cheatInfiniteAmmo: Boolean = false,
@@ -98,52 +99,62 @@ const val BUTTON_ANCHOR_END = "end"
 const val BUTTON_ANCHOR_TOP = "top"
 const val BUTTON_ANCHOR_BOTTOM = "bottom"
 
-// Bermuda default touch overlay layout, matched to the final 2400x1080 reference layout.
-// Core action buttons use control_action type to leverage native semantic input.
+// Exported from the validated device preset in Downloads/bermuda_touch_preset.json.
 fun defaultButtons(): List<TouchButtonConfig> = listOf(
-    // Left side
     TouchButtonConfig(id = "btn_menu", label = "Menu", icon = "menu", shape = BUTTON_SHAPE_CIRCLE,
-        x = 0.018f, y = 0.040f, size = 0.165f, alpha = 0.34f, visible = true,
-        anchorX = BUTTON_ANCHOR_START, anchorY = BUTTON_ANCHOR_TOP, offsetX = 0.040f, offsetY = 0.040f,
+        x = 0.032916665f, y = 0.03425926f, size = 0.180f, alpha = 0.35f, visible = true,
         actions = listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "menu_back"))),
     TouchButtonConfig(id = "btn_inv", label = "Inventory", icon = "inventory", shape = BUTTON_SHAPE_CIRCLE,
-        x = 0.018f, y = 0.234f, size = 0.165f, alpha = 0.34f, visible = true,
-        anchorX = BUTTON_ANCHOR_START, anchorY = BUTTON_ANCHOR_TOP, offsetX = 0.040f, offsetY = 0.234f,
+        x = 0.032916665f, y = 0.19074073f, size = 0.180f, alpha = 0.35f, visible = true,
         actions = listOf(TouchButtonAction(type = "key", mode = "tap", keyName = "TAB"))),
     TouchButtonConfig(id = "dpad", label = "", icon = "dpad_map", shape = BUTTON_SHAPE_SQUARE,
-        x = 0.052f, y = 0.400f, size = 0.430f, alpha = 0.30f, visible = true, dpadDoubleTapRun = true,
-        anchorX = BUTTON_ANCHOR_START, anchorY = BUTTON_ANCHOR_BOTTOM, offsetX = 0.116f, offsetY = 0.170f,
+        x = 0.035f, y = 0.3888889f, size = 0.405f, alpha = 0.30f, visible = true, dpadDoubleTapRun = true,
         actions = listOf(TouchButtonAction(type = "dpad", mode = "hold"))),
-
-    // Top-right utility buttons
     TouchButtonConfig(id = "btn_quick_save", label = "Quick Save", icon = "quick_save", shape = BUTTON_SHAPE_CIRCLE,
-        x = 0.840f, y = 0.040f, size = 0.165f, alpha = 0.34f, visible = true,
-        anchorX = BUTTON_ANCHOR_END, anchorY = BUTTON_ANCHOR_TOP, offsetX = 0.253f, offsetY = 0.040f,
+        x = 0.9125f, y = 0.03425926f, size = 0.160f, alpha = 0.35f, visible = true,
         actions = listOf(TouchButtonAction(type = "key_combo", mode = "tap", keyNames = listOf("ALT", "S")))),
     TouchButtonConfig(id = "btn_quick_load", label = "Quick Load", icon = "quick_load", shape = BUTTON_SHAPE_CIRCLE,
-        x = 0.928f, y = 0.040f, size = 0.165f, alpha = 0.34f, visible = true,
-        anchorX = BUTTON_ANCHOR_END, anchorY = BUTTON_ANCHOR_TOP, offsetX = 0.060f, offsetY = 0.040f,
+        x = 0.8616667f, y = 0.03425926f, size = 0.160f, alpha = 0.35f, visible = true,
         actions = listOf(TouchButtonAction(type = "key_combo", mode = "tap", keyNames = listOf("ALT", "L")))),
-
-    // Right-side action cluster — control_action based
     TouchButtonConfig(id = "btn_status", label = "Status", icon = "status", shape = BUTTON_SHAPE_CIRCLE,
-        x = 0.945f, y = 0.234f, size = 0.165f, alpha = 0.34f, visible = true,
-        anchorX = BUTTON_ANCHOR_END, anchorY = BUTTON_ANCHOR_TOP, offsetX = 0.020f, offsetY = 0.234f,
+        x = 0.80833334f, y = 0.03425926f, size = 0.160f, alpha = 0.35f, visible = true,
         actions = listOf(TouchButtonAction(type = "key", mode = "hold", keyName = "CTRL"))),
     TouchButtonConfig(id = "btn_use", label = "Use", icon = "use", shape = BUTTON_SHAPE_CIRCLE,
-        x = 0.875f, y = 0.425f, size = 0.184f, alpha = 0.34f, visible = true,
-        anchorX = BUTTON_ANCHOR_END, anchorY = BUTTON_ANCHOR_TOP, offsetX = 0.163f, offsetY = 0.425f,
+        x = 0.83958334f, y = 0.3888889f, size = 0.220f, alpha = 0.35f, visible = true,
         actions = listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "use"))),
     TouchButtonConfig(id = "btn_run", label = "Run", icon = "run", shape = BUTTON_SHAPE_CIRCLE,
-        x = 0.823f, y = 0.549f, size = 0.184f, alpha = 0.34f, visible = true,
-        anchorX = BUTTON_ANCHOR_END, anchorY = BUTTON_ANCHOR_BOTTOM, offsetX = 0.279f, offsetY = 0.336f,
+        x = 0.7875f, y = 0.50555557f, size = 0.220f, alpha = 0.35f, visible = true,
         actions = listOf(TouchButtonAction(type = "control_action", mode = "hold", button = "run"))),
     TouchButtonConfig(id = "btn_weapon", label = "Weapon", icon = "weapon", shape = BUTTON_SHAPE_CIRCLE,
-        x = 0.940f, y = 0.549f, size = 0.184f, alpha = 0.34f, visible = true,
-        anchorX = BUTTON_ANCHOR_END, anchorY = BUTTON_ANCHOR_BOTTOM, offsetX = 0.018f, offsetY = 0.336f,
+        x = 0.8925f, y = 0.50555557f, size = 0.220f, alpha = 0.35f, visible = true,
         actions = listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "weapon_toggle"))),
     TouchButtonConfig(id = "btn_jump", label = "Jump", icon = "jump", shape = BUTTON_SHAPE_CIRCLE,
-        x = 0.877f, y = 0.665f, size = 0.184f, alpha = 0.34f, visible = true,
-        anchorX = BUTTON_ANCHOR_END, anchorY = BUTTON_ANCHOR_BOTTOM, offsetX = 0.158f, offsetY = 0.221f,
+        x = 0.83958334f, y = 0.62222224f, size = 0.220f, alpha = 0.35f, visible = true,
         actions = listOf(TouchButtonAction(type = "control_action", mode = "hold", button = "jump_button")))
 )
+
+fun defaultMenuButtons(): List<TouchButtonConfig> {
+    val byId = defaultButtons().associateBy { it.id }
+    return listOfNotNull(
+        byId["btn_menu"]?.copy(
+            label = "Menu", icon = "menu",
+            x = 0.875f, y = 0.3888889f, size = 0.260f,
+            alpha = 0.35f
+        ),
+        byId["btn_use"]?.copy(
+            label = "OK", icon = "ok",
+            x = 0.805f, y = 0.54444444f, size = 0.260f,
+            alpha = 0.35f
+        ),
+        byId["btn_jump"]?.copy(
+            label = "Use", icon = "use",
+            x = 0.805f, y = 0.54444444f, size = 0.260f,
+            alpha = 0.35f,
+            actions = listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "use"))
+        ),
+        byId["dpad"]?.copy(
+            x = 0.035f, y = 0.3888889f, size = 0.405f,
+            alpha = 0.30f
+        )
+    )
+}

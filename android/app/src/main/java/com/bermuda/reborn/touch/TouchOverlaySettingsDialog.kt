@@ -24,6 +24,8 @@ class TouchOverlaySettingsDialog(
     private val controllerConfig: ControllerConfig? = null,
     private val onConfigChanged: (TouchOverlayConfig) -> Unit,
     private val onResetAll: () -> Unit,
+    private val onExportPreset: (() -> Unit)? = null,
+    private val onImportPreset: (() -> Unit)? = null,
     private val onControllerConfigChanged: ((ControllerConfig) -> Unit)? = null,
     private val onOpenControllerMapping: (() -> Unit)? = null
 ) {
@@ -113,6 +115,12 @@ class TouchOverlaySettingsDialog(
         // --- Layout ---
         container.addView(separator())
         container.addView(sectionLabel("Layout"))
+        container.addView(dialogButton("Export Touch Preset", 0xFF24351F.toInt(), 0xFF74A95F.toInt()) {
+            onExportPreset?.invoke()
+        })
+        container.addView(dialogButton("Import Touch Preset", 0xFF35281F.toInt(), 0xFFC98B54.toInt()) {
+            onImportPreset?.invoke()
+        })
         container.addView(dialogButton("Reset to Defaults", 0xFF1A3240.toInt(), 0xFF4A7A9A.toInt()) { onResetAll() })
 
         scrollView.addView(container)

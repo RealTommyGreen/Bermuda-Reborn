@@ -1,6 +1,7 @@
 package com.bermuda.reborn.touch
 
 import android.app.Activity
+import android.net.Uri
 import android.os.Build
 import android.util.Log
 import android.view.Gravity
@@ -8,6 +9,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.Toast
 import com.bermuda.reborn.BermudaActivity
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -227,6 +229,8 @@ class TouchOverlayController(
             controllerConfig = cc,
             onConfigChanged = { updated -> onConfigUpdated(updated) },
             onResetAll = { resetToDefaults() },
+            onExportPreset = { (activity as? BermudaActivity)?.requestTouchPresetExport() },
+            onImportPreset = { (activity as? BermudaActivity)?.requestTouchPresetImport() },
             onControllerConfigChanged = { updated ->
                 controllerConfig = updated
                 controllerStore.save(updated)
@@ -349,8 +353,9 @@ class TouchOverlayController(
 
     private fun repositionAllButtons() {
         val cfg = config ?: return; val minDim = minOf(containerWidth, containerHeight)
+        val layoutButtons = buttonsForContext(lastSyncContext, cfg)
         for (view in buttonViews) {
-            val btnConfig = cfg.buttons.firstOrNull { it.id == view.config.id } ?: continue
+            val btnConfig = layoutButtons.firstOrNull { it.id == view.config.id } ?: continue
             val (bw, bh) = dimensionsFor(btnConfig, minDim)
             val (leftPx, topPx) = positionFor(btnConfig, bw, bh, minDim)
             val lp = view.layoutParams as? FrameLayout.LayoutParams ?: continue
@@ -381,7 +386,11 @@ class TouchOverlayController(
 
     private fun onButtonEditSaved(updatedConfig: TouchButtonConfig) {
         val cfg = config ?: return
-        config = cfg.copy(buttons = cfg.buttons.map { if (it.id == updatedConfig.id) updatedConfig else it })
+        config = if (usesMenuLayout(lastSyncContext)) {
+            cfg.copy(menuButtons = upsertButton(cfg.menuButtons, updatedConfig))
+        } else {
+            cfg.copy(buttons = upsertButton(cfg.buttons, updatedConfig))
+        }
         saveConfig()
         val view = buttonViews.firstOrNull { it.config.id == updatedConfig.id } ?: return
         view.updateConfig(updatedConfig)
@@ -399,7 +408,11 @@ class TouchOverlayController(
         val cfg = config ?: return; val container = overlayContainer ?: return
         val view = buttonViews.firstOrNull { it.config.id == buttonId } ?: return
         view.releaseIfHeld(); container.removeView(view); buttonViews.remove(view)
-        config = cfg.copy(buttons = cfg.buttons.filter { it.id != buttonId })
+        config = if (usesMenuLayout(lastSyncContext)) {
+            cfg.copy(menuButtons = cfg.menuButtons.filter { it.id != buttonId })
+        } else {
+            cfg.copy(buttons = cfg.buttons.filter { it.id != buttonId })
+        }
         saveConfig()
         Log.i(TAG, "Deleted button: $buttonId")
     }
@@ -407,7 +420,9 @@ class TouchOverlayController(
     private fun saveCurrentPositions() {
         val cfg = config ?: return
         if (containerWidth <= 0 || containerHeight <= 0) return
-        val updatedButtons = cfg.buttons.map { btnConfig ->
+        val useMenuLayout = usesMenuLayout(lastSyncContext)
+        val sourceButtons = if (useMenuLayout) cfg.menuButtons else cfg.buttons
+        val updatedButtons = sourceButtons.map { btnConfig ->
             val view = buttonViews.firstOrNull { it.config.id == btnConfig.id }
             if (view != null) {
                 val (nx, ny) = view.getNormalizedPosition(containerWidth, containerHeight)
@@ -415,7 +430,7 @@ class TouchOverlayController(
             }
             else btnConfig
         }
-        config = cfg.copy(buttons = updatedButtons)
+        config = if (useMenuLayout) cfg.copy(menuButtons = updatedButtons) else cfg.copy(buttons = updatedButtons)
         saveConfig()
     }
 
@@ -437,6 +452,58 @@ class TouchOverlayController(
     }
 
     private fun saveConfig() { config?.let { store.save(it) } }
+
+    fun exportPresetToUri(uri: Uri) {
+        saveCurrentPositions()
+        val cfg = config ?: store.loadOrDefault()
+        val exportConfig = cfg.copy(
+            schemaVersion = TOUCH_OVERLAY_CONFIG_VERSION,
+            layoutLocked = true
+        )
+        try {
+            activity.contentResolver.openOutputStream(uri)?.use { stream ->
+                stream.writer(Charsets.UTF_8).use { writer ->
+                    writer.write(store.exportConfigToJson(exportConfig))
+                }
+            } ?: error("Could not open target file")
+            Toast.makeText(activity, "Touch preset exported", Toast.LENGTH_LONG).show()
+            Log.i(TAG, "Exported touch preset to $uri with ${exportConfig.buttons.size} gameplay + ${exportConfig.menuButtons.size} menu buttons")
+        } catch (e: Exception) {
+            Log.e(TAG, "Touch preset export failed: ${e.message}")
+            Toast.makeText(activity, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun importPresetFromUri(uri: Uri) {
+        val raw = try {
+            activity.contentResolver.openInputStream(uri)?.use { stream ->
+                stream.bufferedReader(Charsets.UTF_8).readText()
+            } ?: error("Could not open selected file")
+        } catch (e: Exception) {
+            Log.e(TAG, "Touch preset import read failed: ${e.message}")
+            Toast.makeText(activity, "Import failed: ${e.message}", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val imported = try {
+            store.normalizeImportedConfig(store.importFromJson(raw))
+        } catch (e: Exception) {
+            Log.e(TAG, "Touch preset import validation failed: ${e.message}")
+            Toast.makeText(activity, "Invalid touch preset: ${e.message}", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        config = imported
+        store.save(imported)
+        BermudaActivity.nativeSetCheat(0, imported.cheatGodMode)
+        BermudaActivity.nativeSetCheat(1, imported.cheatInfiniteAmmo)
+        BermudaActivity.nativeSetCheat(2, imported.cheatAllWeapons)
+        BermudaActivity.nativeSetTouchInventoryEnabled(imported.touchInventoryEnabled)
+        BermudaActivity.nativeSetScreenMode(imported.screenMode)
+        reloadFromStore()
+        Toast.makeText(activity, "Touch preset imported (${imported.buttons.size} gameplay + ${imported.menuButtons.size} menu)", Toast.LENGTH_LONG).show()
+        Log.i(TAG, "Imported touch preset with ${imported.buttons.size} gameplay + ${imported.menuButtons.size} menu buttons")
+    }
 
     // ---- Context-sensitive visibility & icon switching ----
 
@@ -482,9 +549,12 @@ class TouchOverlayController(
         lastSyncSwordDrawn = swordDrawn
 
         val armed = gunDrawn || swordDrawn
+        val cfg = config ?: return
+        val layoutButtons = buttonsForContext(context, cfg)
 
         for (view in buttonViews) {
             val btnId = view.config.id
+            layoutButtons.firstOrNull { it.id == btnId }?.let { applyLayoutConfigToView(view, it) }
             val visibility = visibilityForContext(btnId, context)
             view.visibility = if (visibility) View.VISIBLE else View.GONE
 
@@ -504,9 +574,9 @@ class TouchOverlayController(
             if (btnId == "btn_jump" && context == 1) {
                 // Video context: show cancel icon for skip
                 view.updateConfig(view.config.copy(icon = "cancel"))
-            } else if (btnId == "btn_jump" && gunDrawn) {
-                view.updateConfig(view.config.copy(icon = "reload", actions = listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "reload"))))
-            } else if (btnId == "btn_jump" && !gunDrawn) {
+            } else if (btnId == "btn_jump" && context == 4) {
+                view.updateConfig(view.config.copy(icon = "ok", actions = listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "use"))))
+            } else if (btnId == "btn_jump") {
                 view.updateConfig(view.config.copy(icon = "jump", actions = listOf(TouchButtonAction(type = "control_action", mode = "hold", button = "jump_button"))))
             }
 
@@ -514,6 +584,12 @@ class TouchOverlayController(
                 view.updateConfig(view.config.copy(icon = "ok"))
             } else if (btnId == "btn_use" && context != 3 && context != 2) {
                 view.updateConfig(view.config.copy(icon = "use"))
+            }
+
+            if (btnId == "btn_menu" && (context == 3 || context == 2)) {
+                view.updateConfig(view.config.copy(icon = "cancel", actions = listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "menu_back"))))
+            } else if (btnId == "btn_menu" && context != 3 && context != 2) {
+                view.updateConfig(view.config.copy(icon = "menu", actions = listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "menu_back"))))
             }
         }
     }
@@ -524,14 +600,40 @@ class TouchOverlayController(
     private fun weaponActions(): List<TouchButtonAction> =
         listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "weapon_toggle"))
 
+    private fun usesMenuLayout(context: Int): Boolean = context == 2 || context == 3 || context == 4
+
+    private fun buttonsForContext(context: Int, cfg: TouchOverlayConfig): List<TouchButtonConfig> =
+        if (usesMenuLayout(context) && cfg.menuButtons.isNotEmpty()) cfg.menuButtons else cfg.buttons
+
+    private fun upsertButton(buttons: List<TouchButtonConfig>, updated: TouchButtonConfig): List<TouchButtonConfig> =
+        if (buttons.any { it.id == updated.id }) buttons.map { if (it.id == updated.id) updated else it } else buttons + updated
+
+    private fun applyLayoutConfigToView(view: TouchOverlayButtonView, btnConfig: TouchButtonConfig) {
+        if (containerWidth <= 0 || containerHeight <= 0) return
+        val minDim = minOf(containerWidth, containerHeight)
+        val (bw, bh) = dimensionsFor(btnConfig, minDim)
+        val (leftPx, topPx) = positionFor(btnConfig, bw, bh, minDim)
+        val lp = view.layoutParams as? FrameLayout.LayoutParams ?: return
+        lp.width = bw
+        lp.height = bh
+        lp.leftMargin = leftPx
+        lp.topMargin = topPx
+        view.layoutParams = lp
+        view.updateConfig(btnConfig)
+        view.updateAppearance(bw, bh, btnConfig.alpha)
+    }
+
     private fun visibilityForContext(buttonId: String, context: Int): Boolean {
-        // context values: 0=GAMEPLAY, 1=VIDEO, 2=BITMAP_CONFIRM, 3=MENU
+        // context values: 0=GAMEPLAY, 1=VIDEO, 2=BITMAP_CONFIRM, 3=MENU, 4=INVENTORY
         return when (context) {
             1 -> { // VIDEO: only dpad (for skip via directionals) and cancel-type buttons
                 buttonId == "btn_jump" // acts as skip in video
             }
             3, 2 -> { // MENU / BITMAP_CONFIRM: dpad, OK/Cancel
                 buttonId == "dpad" || buttonId == "btn_use" || buttonId == "btn_menu"
+            }
+            4 -> { // INVENTORY: D-Pad and Jump-as-OK only
+                buttonId == "dpad" || buttonId == "btn_jump"
             }
             else -> { // GAMEPLAY: all buttons visible
                 true

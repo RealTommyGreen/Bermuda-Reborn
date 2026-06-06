@@ -1,5 +1,7 @@
 package com.bermuda.reborn
 
+import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.view.ViewGroup
@@ -17,6 +19,8 @@ class BermudaActivity : SDLActivity() {
     companion object {
         private const val TAG = "BermudaActivity"
         private const val TOUCH_OVERLAY_ENABLED = true
+        private const val REQUEST_CODE_IMPORT_TOUCH_PRESET = 1101
+        private const val REQUEST_CODE_EXPORT_TOUCH_PRESET = 1102
 
         @JvmStatic
         external fun nativeSetCheat(cheatId: Int, enabled: Boolean)
@@ -84,6 +88,35 @@ class BermudaActivity : SDLActivity() {
         touchOverlayController?.detach()
         touchOverlayController = null
         super.onDestroy()
+    }
+
+    fun requestTouchPresetImport() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/json"
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/json", "text/json", "*/*"))
+        }
+        startActivityForResult(intent, REQUEST_CODE_IMPORT_TOUCH_PRESET)
+    }
+
+    fun requestTouchPresetExport() {
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/json"
+            putExtra(Intent.EXTRA_TITLE, "bermuda_touch_preset.json")
+        }
+        startActivityForResult(intent, REQUEST_CODE_EXPORT_TOUCH_PRESET)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (resultCode != Activity.RESULT_OK) return
+
+        val uri = data?.data ?: return
+        when (requestCode) {
+            REQUEST_CODE_IMPORT_TOUCH_PRESET -> touchOverlayController?.importPresetFromUri(uri)
+            REQUEST_CODE_EXPORT_TOUCH_PRESET -> touchOverlayController?.exportPresetToUri(uri)
+        }
     }
 
     override fun getLibraries(): Array<String> = arrayOf("bs")

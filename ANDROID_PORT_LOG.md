@@ -567,6 +567,172 @@ Abgenommener Device-Repro:
 
 ---
 
+## Touch-Reload zurueckgestellt: Jump bleibt Jump (2026-06-06)
+
+Status: **Code-Aenderung umgesetzt. Auf Nutzerwunsch keine APK gebaut und nicht installiert. Nicht committed.**
+
+Ausgangspunkt:
+- Der Touch-Jump-Button wurde bei gezogener Gun dynamisch zum Reload-Button umgeschaltet.
+- Device-Test zeigte, dass Reload-Verhalten komplexer ist als geplant und vorerst nicht als Touch-Button ausgeliefert werden soll.
+
+Fix:
+- `TouchOverlayController.kt`: `btn_jump` wird im Gameplay nicht mehr bei `gunDrawn` auf `reload`/`CONTROL_ACTION_RELOAD` umgeschaltet.
+- `btn_jump` bleibt in Gameplay-Kontexten immer Icon `jump` mit `control_action` `jump_button` im Hold-Modus.
+- Video-Kontext bleibt unveraendert: `btn_jump` zeigt dort weiterhin `cancel` fuer Skip/Cancel.
+- Native Reload-State-Machine bleibt im Code, wird aber vom Touch-Jump-Button nicht mehr ausgeloest.
+
+Lokaler Check:
+- Kein Build ausgefuehrt.
+- Keine APK gebaut oder installiert.
+
+---
+
+## Menu-Cancel Touch-Button sichtbar gemacht (2026-06-06)
+
+Status: **Code-Aenderung umgesetzt, Kotlin-Compile-Check erfolgreich. Keine APK gebaut oder installiert. Nicht committed.**
+
+Ausgangspunkt:
+- Im Video-Kontext wird korrekt nur der Cancel/Skip-Button angezeigt.
+- Im Menue-Kontext war fuer den Nutzer nur der OK/Bestaetigen-Button sichtbar; ein klarer Cancel/Zurueck-Button fehlte.
+
+Fix:
+- `TouchOverlayController.kt`: `btn_menu` wird in MENU- und BITMAP_CONFIRM-Kontexten explizit auf Icon `cancel` und Action `menu_back` gesetzt.
+- `TouchInputDispatcher.kt`: `btn_menu` dispatcht in MENU- und BITMAP_CONFIRM-Kontexten direkt `KEYCODE_ESCAPE`.
+- Gameplay-Kontext bleibt unveraendert: `btn_menu` zeigt weiter das Menu-Icon und nutzt `menu_back`.
+
+Lokaler Check:
+- `android/gradlew.bat :app:compileDebugKotlin` erfolgreich
+
+---
+
+## Inventar-Jump-Confirm und getrennte Menu-Layouts (2026-06-06)
+
+Status: **Code-Aenderung umgesetzt, Debug/Release gebaut und Release-APK per ADB installiert. Device-Verifikation durch Nutzer steht aus. Nicht committed.**
+
+Ausgangspunkt:
+- Im geoeffneten Inventar sollte der Jump-Button zusaetzlich Enter/Bestaetigen ausloesen, aber nicht in normalen Menues.
+- Gameplay- und Menue-Buttons sollten getrennt positionierbar sein, damit OK/Zurueck im Menue anders liegen koennen als die Ingame-Buttons.
+
+Fix:
+- `systemstub.h`/`systemstub_sdl.cpp`: eigener Touch-Kontext `TOUCH_INPUT_CONTEXT_INVENTORY` fuer `kStateBag` eingefuehrt.
+- `TouchInputDispatcher.kt`: `btn_jump` dispatcht Enter nur noch in VIDEO und INVENTORY. Normale Menues nutzen dafuer weiter `btn_use`/OK; `btn_menu` bleibt Escape/Cancel.
+- `TouchButtonModels.kt`: Touch-Config-Schema auf v11 erhoeht und `menu_buttons` als separate Layout-Liste hinzugefuegt.
+- `TouchButtonStore.kt`: Migration erzeugt `menu_buttons` fuer bestehende Layouts; bekannte Actions/Icons/Labels werden fuer Menu-Kontexte normalisiert.
+- `TouchOverlayController.kt`: Kontextwechsel wendet Gameplay- oder Menu-Layoutpositionen an; Verschieben/Editieren/Speichern schreibt je nach aktivem Kontext in `buttons` oder `menu_buttons`.
+- INVENTORY zeigt D-Pad, `btn_jump` als Bestaetigen/Enter und `btn_menu` als Cancel; MENU/BITMAP_CONFIRM zeigen D-Pad, `btn_use` OK und `btn_menu` Cancel.
+
+Lokaler Check:
+- `android/gradlew.bat :app:assembleDebug` erfolgreich
+- `android/gradlew.bat :app:assembleRelease` erfolgreich
+- Release-APK: `android/app/build/outputs/apk/release/app-release.apk`, 19,034,417 Bytes
+- Installation: `adb install -r android/app/build/outputs/apk/release/app-release.apk` erfolgreich auf `DEVICE_SERIAL`
+
+---
+
+## Screenshot-basierte Default-Button-Presets (2026-06-06)
+
+Status: **Defaults aus Nutzer-Screenshots uebernommen, Debug/Release gebaut und Release-APK per ADB installiert. Nicht committed.**
+
+Ausgangspunkt:
+- Nutzer hatte Gameplay- und Menue-Buttonlayouts auf einem 2400x1080-Display manuell positioniert.
+- Diese Layouts sollten als neue Default-Presets hinterlegt werden, ohne bestehende manuelle User-Layouts zu ueberschreiben.
+
+Quelle:
+- `C:\Users\Tommy Green\Downloads\Screenshot_20260606-174554.jpg` — Gameplay-Layout, 2400x1080
+- `C:\Users\Tommy Green\Downloads\Screenshot_20260606-174603.jpg` — Menue-Layout, 2400x1080
+
+Fix:
+- `TouchButtonModels.kt`: `defaultButtons()` auf screenshot-basierte Gameplay-Positionen/Groessen gesetzt.
+- `TouchButtonModels.kt`: `defaultMenuButtons()` auf screenshot-basierte Menu/Inventory-Positionen/Groessen gesetzt.
+- Werte bleiben ankerbasiert (`anchorX`/`anchorY` + `offsetX`/`offsetY` relativ zu `minDim`), damit sie auf anderen Landscape-Aspects an den Rändern und Clustern ausgerichtet bleiben.
+- `TOUCH_OVERLAY_CONFIG_VERSION` wurde nicht erneut erhoeht. Bestehende manuell gespeicherte User-Layouts bleiben persistent und werden nicht durch neue Defaults ueberschrieben.
+
+Lokaler Check:
+- `android/gradlew.bat :app:assembleDebug` erfolgreich
+- `android/gradlew.bat :app:assembleRelease` erfolgreich
+- Installation: `adb install -r android/app/build/outputs/apk/release/app-release.apk` erfolgreich auf `DEVICE_SERIAL`
+
+---
+
+## Default-Button-Groessen und Inventar-OK korrigiert (2026-06-06)
+
+Status: **Code-Aenderung umgesetzt, Debug/Release gebaut und Release-APK per ADB installiert. Device-Verifikation durch Nutzer steht aus. Nicht committed.**
+
+Ausgangspunkt:
+- Nach Default-Reset waren die Positionen korrekt, aber die Button-Groessen nicht.
+- D-Pad war zwischen Gameplay und Menue leicht versetzt.
+- Im Inventar sollte kein Zurueck-Button sichtbar sein.
+- Der Inventar-Bestaetigen-Button hatte noch das Jump-Icon statt OK.
+
+Fix:
+- `TouchButtonModels.kt`: Default-Groessen gesetzt:
+  - `btn_menu`/`btn_inv`: `0.180`
+  - `btn_status`/`btn_quick_save`/`btn_quick_load`: `0.160`
+  - `btn_jump`/`btn_use`/`btn_weapon`/`btn_run`: `0.220`
+  - D-Pad: `0.400`
+  - Menu `btn_use`/`btn_menu`: `0.260`
+  - Inventory `btn_jump` als OK: `0.260`
+- `TouchButtonModels.kt`: Menu-D-Pad nutzt dieselbe ankerbasierte Position wie Gameplay-D-Pad.
+- `TouchOverlayController.kt`: Inventory-Kontext zeigt nur D-Pad und `btn_jump` als OK; `btn_menu`/Zurueck wird dort ausgeblendet.
+- `TouchOverlayController.kt`: Inventory-`btn_jump` bekommt Icon `ok` und Tap-Action `use`.
+
+Lokaler Check:
+- `android/gradlew.bat :app:assembleDebug` erfolgreich
+- `android/gradlew.bat :app:assembleRelease` erfolgreich
+- Release-APK: `android/app/build/outputs/apk/release/app-release.apk`, 19,050,801 Bytes
+- Installation: `adb install -r android/app/build/outputs/apk/release/app-release.apk` erfolgreich auf `DEVICE_SERIAL`
+
+---
+
+## Touch-Preset Import/Export fuer Gameplay und Menue (2026-06-06)
+
+Status: **Code-Aenderung umgesetzt, Debug/Release gebaut und Release-APK per ADB installiert. Nicht committed.**
+
+Ausgangspunkt:
+- Screenshot-basierte Default-Werte waren unzuverlaessig genug, dass das echte gespeicherte Nutzerlayout als JSON exportierbar sein soll.
+- Preset-Export/Import soll sowohl Gameplay-Layout (`buttons`) als auch Menu/Inventory-Layout (`menu_buttons`) enthalten.
+
+Fix:
+- `BermudaActivity.kt`: Android-Dateiauswahl per SAF angebunden:
+  - `ACTION_CREATE_DOCUMENT` fuer Export nach frei waehlbarem Speicherort, Default-Dateiname `bermuda_touch_preset.json`.
+  - `ACTION_OPEN_DOCUMENT` fuer Import einer JSON-Datei.
+- `TouchOverlaySettingsDialog.kt`: Layout-Sektion um `Export Touch Preset` und `Import Touch Preset` erweitert.
+- `TouchOverlayController.kt`: Export schreibt die aktuelle persistierbare Config als JSON in die gewaehlte Datei und sichert vorher aktuelle Button-Positionen.
+- `TouchOverlayController.kt`: Import liest die gewaehlte JSON, normalisiert Schema/Actions/Icons, speichert sie und laedt das Overlay neu.
+- `TouchButtonStore.kt`: Import-Normalisierung und JSON-Export-Helfer hinzugefuegt. Export enthaelt `buttons` und `menu_buttons`.
+
+Lokaler Check:
+- `android/gradlew.bat :app:assembleDebug` erfolgreich
+- `android/gradlew.bat :app:assembleRelease` erfolgreich
+- Installation: `adb install -r android/app/build/outputs/apk/release/app-release.apk` erfolgreich auf `DEVICE_SERIAL`
+
+---
+
+## Validiertes Touch-Preset als Default und Lockbutton-SVG (2026-06-06)
+
+Status: **Code-Aenderung umgesetzt, Debug/Release gebaut, Release-APK per ADB installiert und zum Commit vorbereitet.**
+
+Ausgangspunkt:
+- Nutzer hat das am Geraet validierte Preset als `C:\Users\Tommy Green\Downloads\bermuda_touch_preset.json` exportiert.
+- Nach Default-Reset plus Import sah Gameplay, Menue und Inventar korrekt aus; dieses Preset soll daher neuer Default sein.
+- Editor-Lockbutton sollte das `Lock_Button.svg` aus `D:\Coding\Mario_Icons\` mit den dortigen Alignment-Werten nutzen.
+
+Fix:
+- `TouchButtonModels.kt`: `defaultButtons()` und `defaultMenuButtons()` direkt auf die exportierten `x`/`y`/`size`/`alpha`-Werte gesetzt.
+- Gameplay-Defaults, Menu-Defaults und Inventory-OK (`menu_buttons.btn_jump`) nutzen die validierten Positionen aus der JSON.
+- Alte Anchor/Offset-Screenshot-Werte wurden aus den Defaults entfernt; die neue Quelle ist das exportierte Preset.
+- `android/app/src/main/res/raw/lock_button.svg`: `Lock_Button.svg` als Android-Raw-Resource hinzugefuegt.
+- `iconset.json`/`iconmappings.json`: `Lock_Button` mit `iconFill=1.0`, neutralem Offset/Scale aus der Mario-JSON registriert.
+- `TouchOverlayLockButtonView.kt`: handgezeichnetes Schloss durch Rendering des SVG-Icons `lock` ersetzt.
+
+Lokaler Check:
+- `android/gradlew.bat :app:assembleDebug` erfolgreich
+- `android/gradlew.bat :app:assembleRelease` erfolgreich
+- Installation: `adb install -r android/app/build/outputs/apk/release/app-release.apk` erfolgreich auf `DEVICE_SERIAL`
+- Abschluss: Nutzer hat das Default-Preset und neue Lockbutton-SVG freigegeben; Aenderungen werden zusammen committed.
+
+---
+
 ## Build (Release APK)
 
 ```powershell

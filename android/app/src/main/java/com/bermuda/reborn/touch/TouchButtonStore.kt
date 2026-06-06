@@ -58,7 +58,8 @@ class TouchButtonStore(private val filesDir: File) {
 
     fun defaultConfig(): TouchOverlayConfig = TouchOverlayConfig(
         schemaVersion = TOUCH_OVERLAY_CONFIG_VERSION,
-        buttons = defaultButtons()
+        buttons = defaultButtons(),
+        menuButtons = defaultMenuButtons()
     )
 
     private fun migrateConfig(config: TouchOverlayConfig): TouchOverlayConfig {
@@ -66,7 +67,8 @@ class TouchButtonStore(private val filesDir: File) {
             return config.copy(
                 schemaVersion = TOUCH_OVERLAY_CONFIG_VERSION,
                 layoutLocked = true,
-                buttons = defaultButtons()
+                buttons = defaultButtons(),
+                menuButtons = defaultMenuButtons()
             )
         }
 
@@ -84,12 +86,27 @@ class TouchButtonStore(private val filesDir: File) {
             val newLabel = migrateLabelForButton(button)
             button.copy(actions = newActions, icon = newIcon, label = newLabel)
         }
+        val sourceMenuButtons = if (config.menuButtons.isNotEmpty()) config.menuButtons else defaultMenuButtons()
+        val migratedMenuButtons = mergeKnownButtons(sourceMenuButtons, defaultMenuButtons()).map { button ->
+            val newActions = migrateActionsForButton(button)
+            val newIcon = migrateMenuIconForButton(button)
+            val newLabel = migrateMenuLabelForButton(button)
+            button.copy(actions = newActions, icon = newIcon, label = newLabel)
+        }
 
         return config.copy(
             schemaVersion = TOUCH_OVERLAY_CONFIG_VERSION,
             layoutLocked = true,
-            buttons = migratedButtons
+            buttons = migratedButtons,
+            menuButtons = migratedMenuButtons
         )
+    }
+
+    private fun mergeKnownButtons(existing: List<TouchButtonConfig>, defaults: List<TouchButtonConfig>): List<TouchButtonConfig> {
+        val existingById = existing.associateBy { it.id }
+        val merged = defaults.map { defaultButton -> existingById[defaultButton.id] ?: defaultButton }
+        val defaultIds = defaults.map { it.id }.toSet()
+        return merged + existing.filter { it.id !in defaultIds }
     }
 
     private val buttonActionMigrations: Map<String, List<TouchButtonAction>> = mapOf(
@@ -132,8 +149,39 @@ class TouchButtonStore(private val filesDir: File) {
         return buttonLabelMigrations[button.id] ?: button.label
     }
 
+    private fun migrateMenuIconForButton(button: TouchButtonConfig): String? {
+        return when (button.id) {
+            "btn_menu" -> "cancel"
+            "btn_use", "btn_jump" -> "ok"
+            else -> migrateIconForButton(button)
+        }
+    }
+
+    private fun migrateMenuLabelForButton(button: TouchButtonConfig): String {
+        return when (button.id) {
+            "btn_menu" -> "Cancel"
+            "btn_use", "btn_jump" -> "OK"
+            else -> migrateLabelForButton(button)
+        }
+    }
+
     fun importFromJson(raw: String): TouchOverlayConfig =
         jsonFormat.decodeFromString<TouchOverlayConfig>(raw)
+
+    fun normalizeImportedConfig(config: TouchOverlayConfig): TouchOverlayConfig {
+        val normalized = if (config.schemaVersion != TOUCH_OVERLAY_CONFIG_VERSION) {
+            migrateConfig(config)
+        } else {
+            normalizeKnownButtons(config)
+        }
+        return normalized.copy(
+            schemaVersion = TOUCH_OVERLAY_CONFIG_VERSION,
+            layoutLocked = true
+        )
+    }
+
+    fun exportConfigToJson(config: TouchOverlayConfig): String =
+        jsonFormat.encodeToString(config)
 
     fun exportConfig(config: TouchOverlayConfig, targetFile: File) {
         targetFile.writeText(jsonFormat.encodeToString(config))

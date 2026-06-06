@@ -93,6 +93,11 @@ static bool isMenuState() {
 	return s == kStMenu1 || s == kStMenu2;
 }
 
+static bool isBagState() {
+	if (!g_gameStatePtr) return false;
+	return *g_gameStatePtr == kStBag;
+}
+
 static bool isDialogueState() {
 	if (!g_gameStatePtr) return false;
 	return *g_gameStatePtr == kStDialogue;
@@ -196,6 +201,7 @@ struct SystemStub_SDL : SystemStub {
 	virtual int getTouchInputContext() const {
 		if (_videoPlaybackActive) return TOUCH_INPUT_CONTEXT_VIDEO;
 		if (isBitmapState()) return TOUCH_INPUT_CONTEXT_BITMAP_CONFIRM;
+		if (isBagState()) return TOUCH_INPUT_CONTEXT_INVENTORY;
 		if (isMenuState() || isDialogueState()) return TOUCH_INPUT_CONTEXT_MENU;
 		return TOUCH_INPUT_CONTEXT_GAMEPLAY;
 	}

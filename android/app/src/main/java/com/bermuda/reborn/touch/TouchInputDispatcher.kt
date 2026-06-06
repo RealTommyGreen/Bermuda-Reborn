@@ -113,7 +113,7 @@ class TouchInputDispatcher {
         }
 
         val keyCode = when {
-            buttonId == "btn_jump" && (context == TOUCH_CONTEXT_BITMAP_CONFIRM || context == TOUCH_CONTEXT_MENU || context == TOUCH_CONTEXT_VIDEO) ->
+            buttonId == "btn_jump" && (context == TOUCH_CONTEXT_VIDEO || context == TOUCH_CONTEXT_INVENTORY) ->
                 KeyEvent.KEYCODE_ENTER
             buttonId == "btn_weapon" && context == TOUCH_CONTEXT_MENU ->
                 KeyEvent.KEYCODE_ESCAPE
@@ -138,9 +138,11 @@ class TouchInputDispatcher {
         }
 
         val keyCode = when {
-            // In video/bitmap/menu contexts, jump button acts as ENTER (skip/confirm)
-            buttonId == "btn_jump" && context != TOUCH_CONTEXT_GAMEPLAY ->
+            // Video skip and inventory confirm: jump button acts as ENTER only in these contexts.
+            buttonId == "btn_jump" && (context == TOUCH_CONTEXT_VIDEO || context == TOUCH_CONTEXT_INVENTORY) ->
                 KeyEvent.KEYCODE_ENTER
+            buttonId == "btn_menu" && (context == TOUCH_CONTEXT_BITMAP_CONFIRM || context == TOUCH_CONTEXT_MENU) ->
+                KeyEvent.KEYCODE_ESCAPE
             else -> null
         }
 
@@ -307,6 +309,7 @@ class TouchInputDispatcher {
         private const val TOUCH_CONTEXT_VIDEO = 1
         private const val TOUCH_CONTEXT_BITMAP_CONFIRM = 2
         private const val TOUCH_CONTEXT_MENU = 3
+        private const val TOUCH_CONTEXT_INVENTORY = 4
         private const val DIR_UP = 1
         private const val DIR_DOWN = 2
         private const val DIR_LEFT = 4

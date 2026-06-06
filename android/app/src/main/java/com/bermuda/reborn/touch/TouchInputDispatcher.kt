@@ -141,6 +141,8 @@ class TouchInputDispatcher {
             // Video skip and inventory confirm: jump button acts as ENTER only in these contexts.
             buttonId == "btn_jump" && (context == TOUCH_CONTEXT_VIDEO || context == TOUCH_CONTEXT_INVENTORY) ->
                 KeyEvent.KEYCODE_ENTER
+            buttonId == "btn_menu" && context == TOUCH_CONTEXT_VIDEO ->
+                KeyEvent.KEYCODE_ENTER
             buttonId == "btn_menu" && (context == TOUCH_CONTEXT_BITMAP_CONFIRM || context == TOUCH_CONTEXT_MENU) ->
                 KeyEvent.KEYCODE_ESCAPE
             else -> null

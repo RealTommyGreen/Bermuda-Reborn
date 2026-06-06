@@ -571,10 +571,7 @@ class TouchOverlayController(
                 view.updateConfig(view.config.copy(icon = "weapon", actions = weaponActions()))
             }
 
-            if (btnId == "btn_jump" && context == 1) {
-                // Video context: show cancel icon for skip
-                view.updateConfig(view.config.copy(icon = "cancel"))
-            } else if (btnId == "btn_jump" && context == 4) {
+            if (btnId == "btn_jump" && context == 4) {
                 view.updateConfig(view.config.copy(icon = "ok", actions = listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "use"))))
             } else if (btnId == "btn_jump") {
                 view.updateConfig(view.config.copy(icon = "jump", actions = listOf(TouchButtonAction(type = "control_action", mode = "hold", button = "jump_button"))))
@@ -586,9 +583,9 @@ class TouchOverlayController(
                 view.updateConfig(view.config.copy(icon = "use"))
             }
 
-            if (btnId == "btn_menu" && (context == 3 || context == 2)) {
+            if (btnId == "btn_menu" && (context == 1 || context == 3 || context == 2)) {
                 view.updateConfig(view.config.copy(icon = "cancel", actions = listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "menu_back"))))
-            } else if (btnId == "btn_menu" && context != 3 && context != 2) {
+            } else if (btnId == "btn_menu" && context != 1 && context != 3 && context != 2) {
                 view.updateConfig(view.config.copy(icon = "menu", actions = listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "menu_back"))))
             }
         }
@@ -600,7 +597,7 @@ class TouchOverlayController(
     private fun weaponActions(): List<TouchButtonAction> =
         listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "weapon_toggle"))
 
-    private fun usesMenuLayout(context: Int): Boolean = context == 2 || context == 3 || context == 4
+    private fun usesMenuLayout(context: Int): Boolean = context == 1 || context == 2 || context == 3 || context == 4
 
     private fun buttonsForContext(context: Int, cfg: TouchOverlayConfig): List<TouchButtonConfig> =
         if (usesMenuLayout(context) && cfg.menuButtons.isNotEmpty()) cfg.menuButtons else cfg.buttons
@@ -626,8 +623,8 @@ class TouchOverlayController(
     private fun visibilityForContext(buttonId: String, context: Int): Boolean {
         // context values: 0=GAMEPLAY, 1=VIDEO, 2=BITMAP_CONFIRM, 3=MENU, 4=INVENTORY
         return when (context) {
-            1 -> { // VIDEO: only dpad (for skip via directionals) and cancel-type buttons
-                buttonId == "btn_jump" // acts as skip in video
+            1 -> { // VIDEO: menu cancel button (same position as menu back)
+                buttonId == "btn_menu" // acts as skip in video
             }
             3, 2 -> { // MENU / BITMAP_CONFIRM: dpad, OK/Cancel
                 buttonId == "dpad" || buttonId == "btn_use" || buttonId == "btn_menu"

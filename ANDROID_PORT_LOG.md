@@ -759,9 +759,25 @@ Fix:
 Geaenderte Dateien: `game.h`, `game.cpp`
 
 ---
+## Bugfix: Video-Skip-Button deckungsgleich mit Menu-Zurueck (2026-06-06)
+
+Status: **Behoben, vom Nutzer am Device als funktionierend bestaetigt. Committed.**
+
+Fix:
+- `TouchOverlayController.kt`: `visibilityForContext` zeigt im VIDEO-Kontext jetzt `btn_menu` statt `btn_jump`. `usesMenuLayout` um context==1 erweitert, sodass `btn_menu` seine Position aus `menu_buttons` bezieht. `syncContextSensitiveState` setzt `btn_menu` im VIDEO-Kontext auf Cancel-Icon mit `menu_back`-Action.
+- `TouchInputDispatcher.kt`: `contextualKeyCodeForControl` dispatcht `btn_menu` im VIDEO-Kontext als `KEYCODE_ENTER` (Video-Skip), in MENU/BITMAP-Kontexten weiterhin `KEYCODE_ESCAPE`.
+- `btn_jump` im VIDEO-Kontext ist nicht mehr sichtbar; der `context==1`-Branch dafuer im Sync wurde entfernt.
+
+Ergebnis:
+- Video-Skip-Button liegt jetzt exakt an derselben Position wie der Menue-Zurueck-Button (`menu_buttons.btn_menu`).
+- Verschiebt der User den Zurueck-Button im Editor (egal ob im Menue- oder Video-Kontext), folgt der Video-Skip-Button persistent.
+- Der Cancel/Skip-Platz hat damit eine einzige Positionsquelle fuer beide Kontexte.
+
+---
+
 ## Offene technische Bugs fuer naechsten Fix-Pass (2026-06-06)
 
-Status: **Bug 1 & 2 behoben, Bug 3 noch offen.**
+Status: **Bug 1, 2 & 4 behoben, Bug 3 & 5 noch offen.**
 
 ### 3. Overlay-Set-Wechsel reagiert zu traege
 
@@ -777,6 +793,40 @@ Fix-Anweisung:
 - Falls Polling bleibt, testweise auf 50-100 ms senken und Performance/CPU auf Geraet pruefen.
 - Wichtig: Button-Positionen beim Wechsel weiter korrekt aus `buttons` vs. `menu_buttons` laden und keine Drag-/Save-Operationen durch schnellere Syncs verlieren.
 - Regressionstest: Hauptmenue -> Gameplay, Gameplay -> Inventar, Inventar -> Gameplay und Video/Menu-Confirm pruefen; sichtbares Button-Set sollte ohne wahrnehmbare Verzoegerung wechseln.
+
+### 4. Video-Skip-Button soll deckungsgleich mit Menu-Zurueck liegen
+
+Symptom:
+- In Videos wird nur der Skip/Cancel-Button angezeigt.
+- Dieser Button soll immer exakt an derselben Position liegen wie der Zurueck/Cancel-Button in Menues.
+- Ziel ist, dass der User fuer "Zurueck/Abbrechen/Skip" nicht je Kontext eine andere Stelle antippen muss.
+
+Fix-Anweisung:
+- Video-Kontext (`TOUCH_INPUT_CONTEXT_VIDEO`, aktuell `context == 1`) soll fuer den sichtbaren Skip-Button dieselbe Layout-Quelle verwenden wie Menu-Cancel.
+- Der Skip-Button ist runtime aktuell `btn_jump` mit Cancel-Icon. Dadurch greift seine Position aus `buttons`/Gameplay, nicht automatisch die Menu-Cancel-Position.
+- Entweder:
+  - im VIDEO-Kontext statt `btn_jump` den `menu_buttons.btn_menu` als sichtbaren Button verwenden und dessen Action fuer Video-Skip/Enter dispatchen, oder
+  - `applyLayoutConfigToView()` fuer VIDEO/`btn_jump` explizit mit der Layout-Config von `menu_buttons.btn_menu` fuettern, aber Icon/Action weiter als Video-Skip setzen.
+- Wichtig: Menu-Zurueck (`btn_menu` in `menu_buttons`) bleibt die einzige Quelle fuer Position/Groesse des Cancel/Skip-Platzes.
+- Regressionstest: Menu oeffnen und Zurueck-Button-Position merken, danach Video starten; Skip-Button muss pixelgleich an derselben Stelle liegen.
+
+### 5. Unlimited Ammo HUD und Reload-Loop
+
+Symptom:
+- Bei aktivem Unlimited-Ammo-Cheat hat der User funktional unbegrenzt Munition.
+- Das Waffensymbol im HUD zeigt kosmetisch aber nur eins von sechs Patronensymbolen an.
+- Wenn der User nachlaedt, loopt Jack in der Nachladeanimation.
+- Der Loop endet fuer den User nur, wenn er per D-Pad nach oben aufsteht; das ist irritierend und wirkt wie ein Softlock.
+
+Fix-Anweisung:
+- Kosmetik: HUD-/Ammo-Anzeige muss bei aktivem `cheatInfiniteAmmo` entweder volle Ammo anzeigen oder einen bewusst cheat-spezifischen Zustand darstellen. Nicht nur `1/6`.
+- Native/Engine-Stellen suchen, die Ammo fuer HUD aus `_varsTable[3]` oder vergleichbarer Ammo-Variable lesen. Bei `cheatInfiniteAmmo == true` dort fuer die Anzeige einen vollen Clip simulieren, ohne die eigentliche Cheat-Logik kaputtzumachen.
+- Reload-Loop: Reload-Eingabe darf im Unlimited-Ammo-Modus nicht in eine endlose Reload-State-Machine geraten.
+- Sinnvoller Fix:
+  - Wenn `cheatInfiniteAmmo == true`, Reload-Action ignorieren oder direkt als abgeschlossen behandeln, weil kein Nachladen noetig ist.
+  - Falls Jack bereits im Reload-/Crouch-Reload-State ist, muss der Cheat-Pfad die Reload-Action beenden und optional automatisch den normalen Crouch/Stand-State wieder freigeben, statt auf D-Pad-Up angewiesen zu sein.
+- Pruefen, ob der Loop durch dauerhaft gesetztes DOWN/Reload-Signal oder durch eine Ammo-Endbedingung entsteht, die bei Unlimited Ammo nie erreicht wird.
+- Regressionstest: Cheat aktivieren, Gun ziehen, schiessen, HUD pruefen, Reload druecken. Jack darf nicht in Reload loopen; HUD soll nicht irrefuehrend `1/6` anzeigen.
 
 ---
 

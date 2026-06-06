@@ -223,7 +223,7 @@ void Game::setTouchInventoryEnabled(bool enabled) {
 
 SceneObject *Game::findJack() {
 	for (int i = 0; i < _sceneObjectsCount; ++i) {
-		if (strcmp(_sceneObjectsTable[i].name, "Jack") == 0) {
+		if (strcasecmp(_sceneObjectsTable[i].name, "Jack") == 0) {
 			return &_sceneObjectsTable[i];
 		}
 	}
@@ -598,10 +598,12 @@ void Game::updateKeysPressedTable() {
 		--_weaponToggleBusyFrames;
 		if (_weaponToggleBusyFrames == 0 && _weaponToggleDrawRequested) {
 			_weaponToggleDrawRequested = false;
-			if (_controlSelectedWeapon == 1 && _varsTable[1] == 1) {
+			SceneObject *jack = findJack();
+			const bool jackWeaponMotion = jack && _sceneObjectMotionsTable[jack->motionNum2].animNum != 0;
+			if (jackWeaponMotion && _controlSelectedWeapon == 1 && _varsTable[1] == 1) {
 				_controlSwordDrawn = true;
 				_controlGunDrawn = false;
-			} else if (_controlSelectedWeapon == 2 && _varsTable[2] == 1) {
+			} else if (jackWeaponMotion && _controlSelectedWeapon == 2 && _varsTable[2] == 1) {
 				_controlGunDrawn = true;
 				_controlSwordDrawn = false;
 			}

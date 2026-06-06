@@ -777,7 +777,7 @@ Ergebnis:
 
 ## Offene technische Bugs fuer naechsten Fix-Pass (2026-06-06)
 
-Status: **Bug 1, 3 & 4 behoben. Bug 2 (Randszenario offen, s.u.) & Bug 5 noch offen.**
+Status: **Bug 1, 2, 3 & 4 behoben. Bug 5 noch offen.**
 
 ### 3. Overlay-Set-Wechsel reagiert zu traege
 
@@ -853,6 +853,23 @@ Fix-Anweisung:
 - Zu pruefen: Wird `_weaponToggleDrawRequested` jemals auf `true` gesetzt, ohne dass `_weaponToggleBusyFrames` im selben Frame auf 12 geht? Wenn ja, koennte `confirmedWeaponToggleIdle = (_weaponToggleBusyFrames == 0 && !_weaponToggleDrawRequested)` true bleiben und `isGunDrawn()` (via `_controlGunDrawn` aus einem vorherigen State) false-positive liefern.
 - Alternativ: Setzt irgendein Codepfad `_controlGunDrawn` direkt ohne den `_weaponToggleDrawRequested`-Mechanismus?
 - Empfehlung: `nativeGetControlState()`-JNI-Aufruf mit Frame-Counter loggen und bei faelschlichem Fire-Icon den exakten `engineControlState()`-Rueckgabewert + `_weaponToggleDrawRequested` + `_weaponToggleBusyFrames` + `_controlGunDrawn` ausgeben.
+
+**Fix (2026-06-06, Codex Session): Behoben und am Device bestaetigt.**
+
+Trace-Ergebnis:
+- Die dysfunktionalen Weapon-Taps nach dem Rennen bestaetigten den Draw nur ueber `_varsTable[2] == 1`, obwohl Jack nicht in einer bewaffneten Motion war.
+- Falscher Confirm: `anim=0`, teils `frame=0`, aber `_controlGunDrawn` wurde trotzdem gesetzt.
+- Korrekter Confirm: Jack war in bewaffneter Motion, z.B. `anim=1`, `motion=81`.
+
+Fix:
+- `game.cpp`: `findJack()` sucht Jack jetzt case-insensitive (`strcasecmp`), weil Szenen `Jack`/`JACK` unterschiedlich schreiben koennen.
+- `game.cpp`: Nach `_weaponToggleBusyFrames` wird `_controlGunDrawn`/`_controlSwordDrawn` nur noch gesetzt, wenn Jack wirklich in einer bewaffneten Motion ist (`_sceneObjectMotionsTable[jack->motionNum2].animNum != 0`).
+- `_varsTable[1/2] == 1` bleibt Auswahl-/Verfuegbarkeitsbedingung, reicht aber nicht mehr allein als Draw-Bestaetigung.
+
+Device-Verifikation:
+- Release-APK gebaut und per `adb install -r` installiert.
+- Repro: nach Rennen vier Weapon-Taps; die ersten dysfunktionalen Taps bleiben visuell unbewaffnet, die spaeter von der Engine akzeptierten Taps wechseln korrekt auf Fire.
+- Nutzer bestaetigt: "ja das hat funktioniert!".
 
 ---
 

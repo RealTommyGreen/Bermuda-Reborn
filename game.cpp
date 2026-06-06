@@ -134,6 +134,7 @@ void Game::restart() {
 	_currentPlayingSoundPriority = 0;
 	_lifeBarDisplayed2 = _lifeBarDisplayed = true;
 	_reloadPhase = 0;
+	_reloadFrameCounter = 0;
 	_reloadWasCrouched = false;
 
 	memset(_keysPressed, 0, sizeof(_keysPressed));
@@ -237,17 +238,11 @@ bool Game::isSwordDrawn() const {
 
 void Game::handleWeaponToggle() {
 	if (isJackArmed()) {
-		// holster current weapon
-		_varsTable[1] = 2;
-		_varsTable[2] = 2;
-	} else {
-		// draw gun if available, else sword
-		if (_varsTable[2] >= 1) {
-			_varsTable[2] = 1;
-			_varsTable[1] = 2;
-		} else if (_varsTable[1] >= 1) {
-			_varsTable[1] = 1;
-		}
+		_keysPressed[16] = 1; // SHIFT = original holster action
+		_keysPressed[32] = 0;
+	} else if (_varsTable[2] >= 1 || _varsTable[1] >= 1) {
+		_keysPressed[32] = 1; // SPACE = original draw weapon action
+		_keysPressed[16] = 0;
 	}
 }
 
@@ -256,23 +251,40 @@ void Game::handleReloadSequence() {
 	SceneObject *jack = findJack();
 	if (!jack) return;
 	_reloadWasCrouched = (_keysPressed[40] != 0) || ((_stub->_pi.dirMask & PlayerInput::DIR_DOWN) != 0);
-	_keysPressed[40] = 1; // hold DOWN for reload
-	_reloadPhase = 1;
+	_reloadFrameCounter = 0;
+	_reloadPhase = _reloadWasCrouched ? 3 : 1;
+	_keysPressed[40] = 1;
 }
 
 bool Game::isReloadComplete() const {
-	if (_reloadPhase != 1) return true;
+	if (_reloadPhase != 3) return false;
+	if (_reloadFrameCounter < 8) return false;
 	if (_varsTable[3] >= 4) return true;
 	return false;
 }
 
 void Game::finishReloadIfComplete() {
+	if (_reloadPhase == 1) {
+		_keysPressed[40] = 1; // crouch first
+		_reloadPhase = 2;
+		return;
+	}
 	if (_reloadPhase == 2) {
+		_keysPressed[40] = 0; // one-frame release before reload press
+		_reloadFrameCounter = 0;
+		_reloadPhase = 3;
+		return;
+	}
+	if (_reloadPhase == 4) {
 		_keysPressed[38] = 1; // one UP pulse to stand after a standing reload
 		_reloadPhase = 0;
 		return;
 	}
-	if (_reloadPhase != 1 || !isReloadComplete()) return;
+	if (_reloadPhase != 3) return;
+
+	_keysPressed[40] = 1; // actual reload press while crouched
+	++_reloadFrameCounter;
+	if (!isReloadComplete()) return;
 
 	// Log Jack's motion for reload-end motion detection refinement
 	SceneObject *jack = findJack();
@@ -288,8 +300,7 @@ void Game::finishReloadIfComplete() {
 
 	if (!_reloadWasCrouched) {
 		_keysPressed[40] = 0;
-		_keysPressed[38] = 1; // standing: send UP to stand up
-		_reloadPhase = 2;
+		_reloadPhase = 4;
 		return;
 	}
 	_keysPressed[40] = 0; // crouched: release reload DOWN, no UP pulse
@@ -540,9 +551,9 @@ void Game::updateKeysPressedTable() {
 	}
 
 	// -- Weapon toggle --
+	const bool weaponToggleRequested = _stub->_pi.weaponToggleAction;
 	if (_stub->_pi.weaponToggleAction) {
 		_stub->_pi.weaponToggleAction = false;
-		handleWeaponToggle();
 	}
 
 	// -- Run/Fire: semantic runAction maps to SHIFT (run) or SPACE (fire) depending on weapon --
@@ -600,6 +611,9 @@ void Game::updateKeysPressedTable() {
 		handleReloadSequence();
 	}
 	finishReloadIfComplete();
+	if (weaponToggleRequested) {
+		handleWeaponToggle();
+	}
 
 	if (_keyboardReplayData) {
 		for (uint32_t i = 0; i < sizeof(_keysPressed) && _keyboardReplayOffset < _keyboardReplaySize; ++i) {

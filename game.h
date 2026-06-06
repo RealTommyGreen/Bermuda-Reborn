@@ -499,6 +499,7 @@ struct Game {
 	bool _touchInventoryEnabled;
 	int _stateSlot;
 	int _reloadPhase;
+	int _reloadFrameCounter;
 	bool _reloadWasCrouched;
 	int _pendingLoadSlot;
 	int _menuSlotMode;

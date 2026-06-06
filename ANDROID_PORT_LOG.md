@@ -340,6 +340,42 @@ Erwartung fuer naechsten Device-Test:
 
 ---
 
+## Device-Test-Fix 4: Weapon-Toggle und Reload ueber Engine-Keysequenzen (2026-06-06)
+
+Status: **Fix umgesetzt und signierte Release-APK fuer Device-Test installiert. Keine Freigabe fuer APK-Upload auf Drive.**
+
+Ausgangspunkt:
+- Fire-Button feuert korrekt.
+- Weapon-Button blendete HUD-Waffensymbol und Touch-Icons um, aber Jacks eigentliche Waffenhaltung blieb bewaffnet.
+- Run-Button konnte danach die Waffe tatsaechlich wegstecken, weil er im bewaffneten Altzustand noch den originalen Shift/Holster-Pfad erreichte.
+- Reload-Button hatte keine sichtbare Wirkung.
+
+Ursache:
+- `handleWeaponToggle()` setzte bisher direkt `_varsTable[1/2]`. Diese Variablen steuern HUD/UI-State, loesen aber nicht zwingend Jacks echte Weapon-Motion/Scripts aus.
+- Reload bestand nur aus einem sofortigen DOWN-Hold und konnte im gleichen Ablauf zu schnell als abgeschlossen gelten.
+
+Fix:
+- `game.cpp`: Weapon-Toggle setzt keine Weapon-Vars mehr direkt. Stattdessen wird die originale Engine-Eingabe gepulst:
+  - bewaffnet: `SHIFT` fuer Holster
+  - unbewaffnet und Waffe verfuegbar: `SPACE` fuer Draw
+- `game.cpp`: Reload-State-Machine auf mehrphasige Sequenz erweitert:
+  - stehend: DOWN zum Crouch, ein Frame Release, dann DOWN fuer Reload, danach UP zum Aufstehen
+  - crouched: direkt DOWN fuer Reload, kein abschliessendes UP
+- `game.h`: Reload-Frame-Counter ergaenzt, damit Reload nicht im Startframe sofort beendet wird.
+
+Lokaler Check:
+- Branch: `Reborn`
+- Build: `android/gradlew.bat :app:assembleDebug` erfolgreich
+- Build: `android/gradlew.bat :app:assembleRelease` erfolgreich
+- Signierte Release-APK per `adb install -r` erfolgreich installiert
+
+Erwartung fuer naechsten Device-Test:
+- Weapon-Button muss die Figur sichtbar holstern und spaeter wieder sichtbar ziehen.
+- HUD-Waffensymbol und Touch-Icons duerfen erst der echten Engine-Haltung folgen.
+- Reload-Button muss nach abgefeuertem Schuss die Crouch/Reload-Sequenz ausloesen.
+
+---
+
 ## Build (Release APK)
 
 ```powershell

@@ -470,6 +470,39 @@ Erwartung fuer naechsten Device-Test:
 
 ---
 
+## Device-Test-Todos fuer naechste Session: Weapon-State-Stabilisierung (2026-06-06)
+
+Status: **Offen. Keine Freigabe fuer APK-Upload auf Drive.**
+
+Aktueller Stand nach Commit `5bf32e6 Preserve holstered inventory weapon selection`:
+- Teilfix funktioniert: Wird im Inventar einmal von Gewehr auf Schwert gewechselt, zieht der Weapon-Button danach korrekt das Schwert.
+- Fehler bleibt: Wird das Schwert danach weggesteckt und anschliessend erneut per Weapon-Button gezogen, wird wieder das Gewehr gezogen.
+
+Todo 1: Persistente Schwert-Auswahl nach Holster fixen
+- Repro: Inventar oeffnen -> von Gewehr auf Schwert wechseln -> bestaetigen/schliessen -> Weapon zieht Schwert -> Weapon steckt Schwert weg -> Weapon erneut druecken.
+- Ist: Beim erneuten Ziehen kommt das Gewehr.
+- Soll: Die zuletzt im Inventar gewaehlte Waffe muss auch nach Holstern erhalten bleiben. Wenn Schwert aktiv gewaehlt war, muss Weapon erneut Schwert ziehen.
+- Relevante Dateien/Mechanik:
+  - `bag.cpp`: Inventar setzt `_controlSelectedWeapon`.
+  - `game.cpp`: `handleWeaponToggle()` und `updateKeysPressedTable()` verwalten `_controlSelectedWeapon`, `_controlGunDrawn`, `_controlSwordDrawn`.
+  - Wahrscheinlicher Fehlerbereich: Beim Holstern oder nach Abschluss der Holster-Animation wird `_varsTable[1/2]` vom Original-Script wieder so gesetzt, dass der naechste Draw-Pfad Gewehr bevorzugt oder `_controlSelectedWeapon` indirekt wieder auf Gun kippt.
+
+Todo 2: Weapon-Button gegen zu schnelle Eingaben sperren
+- Repro: Weapon-Button mehrfach schnell druecken, waehrend Ziehen/Wegstecken-Animation noch laeuft.
+- Ist: Touch-Icons wechseln bereits, aber die eigentliche Engine-Aktion Ziehen/Wegstecken wird nicht korrekt ausgefuehrt, weil die Animation noch nicht beendet war.
+- Soll: Weapon-Toggle darf waehrend laufender Draw/Holster-Animation nicht sofort einen neuen logischen State committen. Entweder Eingabe ignorieren bis Engine-State stabil ist oder als Pending-Toggle puffern und erst nach Abschluss ausfuehren.
+- Relevante Dateien/Mechanik:
+  - `game.cpp`: `handleWeaponToggle()` setzt aktuell `_controlGunDrawn/_controlSwordDrawn` direkt beim Button-Event.
+  - `game.cpp`: `getTouchGameState()` liefert Touch-State fuer Icon-Umschaltung.
+  - Vermutlich noetig: separater Pending-/Cooldown-/Animation-Gate-State, damit UI-State erst dann wechselt, wenn die Engine die Aktion wirklich angenommen hat.
+
+Naechste Session starten mit:
+- Zuerst aktuellen Repro im Code gegen `handleWeaponToggle()` nachvollziehen.
+- Danach klaeren, welche `_varsTable[1/2]` Werte direkt vor/nach Holster und nach Animationsende anliegen.
+- Erst danach Fix implementieren, signierte Release-APK installieren und erneut Device-Test durchfuehren.
+
+---
+
 ## Build (Release APK)
 
 ```powershell

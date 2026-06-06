@@ -573,8 +573,10 @@ void Game::updateKeysPressedTable() {
 		_keysPressed[32] = _stub->_pi.space ? 1 : 0;
 	}
 
-	// -- DPAD horizontal: only override auto-walk direction from runAction --
-	if (_stub->_pi.dirMask & (PlayerInput::DIR_LEFT | PlayerInput::DIR_RIGHT)) {
+	// -- DPAD horizontal: write every frame so released touch directions clear movement.
+	// Run auto-walk owns left/right only while runAction is held without a D-Pad override.
+	const bool dpadHorizontal = (_stub->_pi.dirMask & (PlayerInput::DIR_LEFT | PlayerInput::DIR_RIGHT)) != 0;
+	if (!(_stub->_pi.runAction && !armed && !dpadHorizontal)) {
 		_keysPressed[37] = (_stub->_pi.dirMask & PlayerInput::DIR_LEFT)  ? 1 : 0;
 		_keysPressed[39] = (_stub->_pi.dirMask & PlayerInput::DIR_RIGHT) ? 1 : 0;
 	}

@@ -281,6 +281,32 @@ Erwartung fuer naechsten Device-Test:
 
 ---
 
+## Device-Test-Fix 2: Horizontalbewegung stoppt nach DPAD-Release (2026-06-06)
+
+Status: **Fix umgesetzt und signierte Release-APK fuer Device-Test installiert. Keine Freigabe fuer APK-Upload auf Drive.**
+
+Ausgangspunkt:
+- Icons sind jetzt korrekt: Menu zeigt OK, Gameplay ohne gezogene Waffe zeigt Run und Jump.
+- Verbleibender Blocker: Nach einer Touch-DPAD-Bewegung lief Jack weiter, obwohl die Richtung losgelassen wurde.
+
+Ursache:
+- `TouchInputDispatcher` loeschte die native Richtung zwar, aber `Game::updateKeysPressedTable()` schrieb `_keysPressed[37]`/`_keysPressed[39]` nur bei aktivem horizontalem DPAD neu. Nach Release blieben die alten Key-Werte deshalb im Engine-Keybuffer stehen.
+
+Fix:
+- `game.cpp`: horizontale Bewegungstasten werden jetzt in jedem Frame aus `dirMask` geschrieben und damit bei Release auf 0 gesetzt.
+- Die einzige Ausnahme bleibt der geplante Run-Autowalk: Wenn `runAction` ohne DPAD-Override gehalten wird und Jack unbewaffnet ist, darf Run weiterhin die Blickrichtung als Bewegung setzen.
+
+Lokaler Check:
+- Branch: `Reborn`
+- Build: `android/gradlew.bat :app:assembleDebug` erfolgreich
+
+Erwartung fuer naechsten Device-Test:
+- DPAD links/rechts muss beim Loslassen sofort stoppen.
+- Richtungswechsel links/rechts darf keine alte Richtung halten.
+- Run-Autowalk muss weiterhin nur solange laufen, wie der Run-Button gehalten wird, und DPAD muss ihn uebersteuern.
+
+---
+
 ## Build (Release APK)
 
 ```powershell

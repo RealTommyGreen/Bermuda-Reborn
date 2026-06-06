@@ -133,6 +133,8 @@ void Game::restart() {
 	_previousBagObject = _currentBagObject = -1;
 	_currentPlayingSoundPriority = 0;
 	_lifeBarDisplayed2 = _lifeBarDisplayed = true;
+	_controlGunDrawn = false;
+	_controlSwordDrawn = false;
 	_reloadPhase = 0;
 	_reloadFrameCounter = 0;
 	_reloadWasCrouched = false;
@@ -225,24 +227,28 @@ SceneObject *Game::findJack() {
 }
 
 bool Game::isJackArmed() const {
-	return _varsTable[1] == 1 || _varsTable[2] == 1;
+	return _controlGunDrawn || _controlSwordDrawn;
 }
 
 bool Game::isGunDrawn() const {
-	return _varsTable[2] == 1;
+	return _controlGunDrawn;
 }
 
 bool Game::isSwordDrawn() const {
-	return _varsTable[1] == 1;
+	return _controlSwordDrawn;
 }
 
 void Game::handleWeaponToggle() {
 	if (isJackArmed()) {
 		_keysPressed[16] = 1; // SHIFT = original holster action
 		_keysPressed[32] = 0;
+		_controlGunDrawn = false;
+		_controlSwordDrawn = false;
 	} else if (_varsTable[2] >= 1 || _varsTable[1] >= 1) {
 		_keysPressed[32] = 1; // SPACE = original draw weapon action
 		_keysPressed[16] = 0;
+		_controlGunDrawn = _varsTable[2] >= 1;
+		_controlSwordDrawn = !_controlGunDrawn && _varsTable[1] >= 1;
 	}
 }
 

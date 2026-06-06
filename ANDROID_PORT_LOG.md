@@ -376,6 +376,37 @@ Erwartung fuer naechsten Device-Test:
 
 ---
 
+## Device-Test-Fix 5: Besitz-State von Control-Drawn-State getrennt (2026-06-06)
+
+Status: **Fix umgesetzt und signierte Release-APK fuer Device-Test installiert. Keine Freigabe fuer APK-Upload auf Drive.**
+
+Ausgangspunkt:
+- Nach dem Einsammeln des Gewehrs erschienen sofort Fire/Reload, obwohl die Waffe noch nicht gezogen war.
+- Fire zog dadurch die Waffe und schoss.
+- Nach Weapon/Holster wechselten HUD und Touch-Icons nicht stabil zur echten Haltung.
+
+Ursache:
+- `_varsTable[2] == 1` wurde in der Control-Logik als "Gun drawn" interpretiert, bildet im Spiel aber auch "Gun verfuegbar/besitzt" ab.
+
+Fix:
+- `game.cpp`/`game.h`: separater semantischer Control-State `_controlGunDrawn`/`_controlSwordDrawn` eingefuehrt.
+- `isGunDrawn()`, `isSwordDrawn()` und `isJackArmed()` nutzen fuer Control/UI/Fire/Reload diesen Drawn-State statt reinen Besitz-Variablen.
+- `handleWeaponToggle()` nutzt `_varsTable[1/2]` nur noch fuer Verfuegbarkeit, setzt den Control-Drawn-State aber erst beim expliziten Draw/Holster ueber den Weapon-Button.
+
+Lokaler Check:
+- Branch: `Reborn`
+- Build: `android/gradlew.bat :app:assembleDebug` erfolgreich
+- Build: `android/gradlew.bat :app:assembleRelease` erfolgreich
+- Signierte Release-APK per `adb install -r` erfolgreich installiert
+
+Erwartung fuer naechsten Device-Test:
+- Nach Gewehr-Pickup bleiben Run/Jump sichtbar, bis Weapon gedrueckt wird.
+- Weapon zieht die Waffe, danach Fire/Reload.
+- Weapon holstert die Waffe, danach Run/Jump.
+- Fire darf unbewaffnet nicht mehr ziehen/schiessen, weil es unbewaffnet nicht sichtbar sein sollte.
+
+---
+
 ## Build (Release APK)
 
 ```powershell

@@ -498,6 +498,8 @@ struct Game {
 	int _screenMode;
 	bool _touchInventoryEnabled;
 	int _stateSlot;
+	bool _controlGunDrawn;
+	bool _controlSwordDrawn;
 	int _reloadPhase;
 	int _reloadFrameCounter;
 	bool _reloadWasCrouched;

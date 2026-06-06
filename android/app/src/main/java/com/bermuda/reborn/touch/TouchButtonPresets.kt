@@ -15,19 +15,19 @@ val TOUCH_BUTTON_PRESETS: List<TouchButtonPreset> = listOf(
     // D-Pad
     TouchButtonPreset("dpad", "D-Pad", "dpad_map",
         TouchButtonAction(type = "dpad", mode = "hold"), "Movement"),
-    keyPreset("jump", "Jump", "jump", "UP", "Movement", mode = "hold"),
+    controlActionPreset("jump", "Jump", "jump", "jump_button", "Movement", mode = "hold"),
 
     // Mouse
     mousePreset("mouse_left", "Left Click", "mouse_left", "left"),
     mousePreset("mouse_right", "Right Click", "mouse_right", "right"),
 
-    // Bermuda keys
-    keyPreset("use", "Use", "use", "ENTER", "Actions"),
-    keyPreset("weapon", "Weapon", "weapon", "SPACE", "Actions"),
-    keyPreset("run", "Run/Holster", "run", "SHIFT", "Actions", mode = "hold"),
+    // Bermuda — control_action based for core gameplay
+    controlActionPreset("use", "Use", "use", "use", "Actions"),
+    controlActionPreset("weapon", "Weapon", "weapon", "weapon_toggle", "Actions"),
+    controlActionPreset("run", "Run", "run", "run", "Actions", mode = "hold"),
     keyPreset("inventory", "Inventory", "inventory", "TAB", "UI"),
     keyPreset("status", "Status", "status", "CTRL", "UI", mode = "hold"),
-    keyPreset("menu", "Menu", "menu", "ESCAPE", "UI"),
+    controlActionPreset("menu", "Menu", "menu", "menu_back", "UI"),
     keyPreset("save", "Save", "quick_save", "S", "UI"),
     keyPreset("load", "Load", "quick_load", "L", "UI"),
     keyPreset("slot_next", "Slot +", "arrow_right", "PAGE_UP", "UI"),
@@ -55,6 +55,11 @@ private fun keyPreset(id: String, label: String, icon: String, keyName: String,
                        category: String, mode: String = "tap"): TouchButtonPreset =
     TouchButtonPreset(id, label, icon,
         TouchButtonAction(type = "key", mode = mode, keyName = keyName), category)
+
+private fun controlActionPreset(id: String, label: String, icon: String, button: String,
+                                 category: String, mode: String = "tap"): TouchButtonPreset =
+    TouchButtonPreset(id, label, icon,
+        TouchButtonAction(type = "control_action", mode = mode, button = button), category)
 
 private fun comboPreset(id: String, label: String, icon: String,
                          keyNames: List<String>, category: String): TouchButtonPreset =

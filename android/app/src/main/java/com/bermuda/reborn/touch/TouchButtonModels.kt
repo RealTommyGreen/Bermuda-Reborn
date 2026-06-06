@@ -3,7 +3,7 @@ package com.bermuda.reborn.touch
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-const val TOUCH_OVERLAY_CONFIG_VERSION = 8
+const val TOUCH_OVERLAY_CONFIG_VERSION = 9
 const val CONTROLLER_CONFIG_VERSION = 1
 
 const val SCREEN_MODE_4_3 = 0
@@ -99,12 +99,13 @@ const val BUTTON_ANCHOR_TOP = "top"
 const val BUTTON_ANCHOR_BOTTOM = "bottom"
 
 // Bermuda default touch overlay layout, matched to the final 2400x1080 reference layout.
+// Core action buttons use control_action type to leverage native semantic input.
 fun defaultButtons(): List<TouchButtonConfig> = listOf(
     // Left side
     TouchButtonConfig(id = "btn_menu", label = "Menu", icon = "menu", shape = BUTTON_SHAPE_CIRCLE,
         x = 0.018f, y = 0.040f, size = 0.165f, alpha = 0.34f, visible = true,
         anchorX = BUTTON_ANCHOR_START, anchorY = BUTTON_ANCHOR_TOP, offsetX = 0.040f, offsetY = 0.040f,
-        actions = listOf(TouchButtonAction(type = "key", mode = "tap", keyName = "ESCAPE"))),
+        actions = listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "menu_back"))),
     TouchButtonConfig(id = "btn_inv", label = "Inventory", icon = "inventory", shape = BUTTON_SHAPE_CIRCLE,
         x = 0.018f, y = 0.234f, size = 0.165f, alpha = 0.34f, visible = true,
         anchorX = BUTTON_ANCHOR_START, anchorY = BUTTON_ANCHOR_TOP, offsetX = 0.040f, offsetY = 0.234f,
@@ -124,7 +125,7 @@ fun defaultButtons(): List<TouchButtonConfig> = listOf(
         anchorX = BUTTON_ANCHOR_END, anchorY = BUTTON_ANCHOR_TOP, offsetX = 0.060f, offsetY = 0.040f,
         actions = listOf(TouchButtonAction(type = "key_combo", mode = "tap", keyNames = listOf("ALT", "L")))),
 
-    // Right-side action cluster
+    // Right-side action cluster — control_action based
     TouchButtonConfig(id = "btn_status", label = "Status", icon = "status", shape = BUTTON_SHAPE_CIRCLE,
         x = 0.945f, y = 0.234f, size = 0.165f, alpha = 0.34f, visible = true,
         anchorX = BUTTON_ANCHOR_END, anchorY = BUTTON_ANCHOR_TOP, offsetX = 0.020f, offsetY = 0.234f,
@@ -132,17 +133,17 @@ fun defaultButtons(): List<TouchButtonConfig> = listOf(
     TouchButtonConfig(id = "btn_use", label = "Use", icon = "use", shape = BUTTON_SHAPE_CIRCLE,
         x = 0.875f, y = 0.425f, size = 0.184f, alpha = 0.34f, visible = true,
         anchorX = BUTTON_ANCHOR_END, anchorY = BUTTON_ANCHOR_TOP, offsetX = 0.163f, offsetY = 0.425f,
-        actions = listOf(TouchButtonAction(type = "key", mode = "tap", keyName = "ENTER"))),
+        actions = listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "use"))),
     TouchButtonConfig(id = "btn_run", label = "Run", icon = "run", shape = BUTTON_SHAPE_CIRCLE,
         x = 0.823f, y = 0.549f, size = 0.184f, alpha = 0.34f, visible = true,
         anchorX = BUTTON_ANCHOR_END, anchorY = BUTTON_ANCHOR_BOTTOM, offsetX = 0.279f, offsetY = 0.336f,
-        actions = listOf(TouchButtonAction(type = "key", mode = "hold", keyName = "SHIFT"))),
+        actions = listOf(TouchButtonAction(type = "control_action", mode = "hold", button = "run"))),
     TouchButtonConfig(id = "btn_weapon", label = "Weapon", icon = "weapon", shape = BUTTON_SHAPE_CIRCLE,
         x = 0.940f, y = 0.549f, size = 0.184f, alpha = 0.34f, visible = true,
         anchorX = BUTTON_ANCHOR_END, anchorY = BUTTON_ANCHOR_BOTTOM, offsetX = 0.018f, offsetY = 0.336f,
-        actions = listOf(TouchButtonAction(type = "key", mode = "tap", keyName = "SPACE"))),
+        actions = listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "weapon_toggle"))),
     TouchButtonConfig(id = "btn_jump", label = "Jump", icon = "jump", shape = BUTTON_SHAPE_CIRCLE,
         x = 0.877f, y = 0.665f, size = 0.184f, alpha = 0.34f, visible = true,
         anchorX = BUTTON_ANCHOR_END, anchorY = BUTTON_ANCHOR_BOTTOM, offsetX = 0.158f, offsetY = 0.221f,
-        actions = listOf(TouchButtonAction(type = "key", mode = "hold", keyName = "UP")))
+        actions = listOf(TouchButtonAction(type = "control_action", mode = "hold", button = "jump_button")))
 )

@@ -33,6 +33,11 @@ class TouchOverlayController(
     private var schlossButton: TouchOverlayLockButtonView? = null
     private var gearButton: TouchOverlaySettingsButtonView? = null
     private var gridView: TouchOverlayGridView? = null
+    private var contextSyncRunnable: Runnable? = null
+    private var lastSyncContext = -1
+    private var lastSyncGunDrawn = false
+    private var lastSyncSwordDrawn = false
+    private var contextSyncRunning = false
 
     fun attach() {
         if (attached) return
@@ -68,6 +73,7 @@ class TouchOverlayController(
             createButtonViews()
             syncGlobalConfigToButtonViews()
             updateSchlossButtonState()
+            startContextSync()
         }
     }
 
@@ -81,6 +87,7 @@ class TouchOverlayController(
         overlayContainer = null
         saveDebounceRunnable?.let { root.removeCallbacks(it) }
         saveDebounceRunnable = null
+        stopContextSync()
         attached = false
     }
 
@@ -431,6 +438,88 @@ class TouchOverlayController(
 
     private fun saveConfig() { config?.let { store.save(it) } }
 
+    // ---- Context-sensitive visibility & icon switching ----
+
+    fun startContextSync() {
+        if (contextSyncRunning) return
+        contextSyncRunning = true
+        lastSyncContext = -1
+        lastSyncGunDrawn = false
+        lastSyncSwordDrawn = false
+        scheduleContextSync()
+    }
+
+    fun stopContextSync() {
+        contextSyncRunning = false
+        contextSyncRunnable?.let { root.removeCallbacks(it) }
+        contextSyncRunnable = null
+    }
+
+    private fun scheduleContextSync() {
+        if (!contextSyncRunning) return
+        contextSyncRunnable = Runnable {
+            syncContextSensitiveState()
+            if (contextSyncRunning) root.postDelayed(contextSyncRunnable, CONTEXT_SYNC_INTERVAL_MS)
+        }
+        root.postDelayed(contextSyncRunnable, CONTEXT_SYNC_INTERVAL_MS)
+    }
+
+    private fun syncContextSensitiveState() {
+        if (controllerEnabled) return
+        val context = try {
+            BermudaActivity.nativeGetTouchInputContext()
+        } catch (e: UnsatisfiedLinkError) { 0 }
+
+        val controlState = try {
+            BermudaActivity.nativeGetControlState()
+        } catch (e: UnsatisfiedLinkError) { 0 }
+        val gunDrawn = (controlState and 1) != 0     // CONTROL_STATE_GUN_DRAWN
+        val swordDrawn = (controlState and 2) != 0    // CONTROL_STATE_SWORD_DRAWN
+
+        if (context == lastSyncContext && gunDrawn == lastSyncGunDrawn && swordDrawn == lastSyncSwordDrawn) return
+        lastSyncContext = context
+        lastSyncGunDrawn = gunDrawn
+        lastSyncSwordDrawn = swordDrawn
+
+        val armed = gunDrawn || swordDrawn
+
+        for (view in buttonViews) {
+            val btnId = view.config.id
+            val visibility = visibilityForContext(btnId, context)
+            view.visibility = if (visibility) View.VISIBLE else View.GONE
+
+            // Icon switching for armed state
+            if (btnId == "btn_run" && armed) {
+                val newIcon = if (gunDrawn) "fire" else if (swordDrawn) "sword" else null
+                if (newIcon != null) view.updateConfig(view.config.copy(icon = newIcon))
+                else view.updateConfig(view.config.copy(icon = "run"))
+            } else if (btnId == "btn_run" && !armed) {
+                view.updateConfig(view.config.copy(icon = "run"))
+            }
+
+            if (btnId == "btn_jump" && gunDrawn) {
+                view.updateConfig(view.config.copy(icon = "reload"))
+            } else if (btnId == "btn_jump" && !gunDrawn) {
+                view.updateConfig(view.config.copy(icon = "jump"))
+            }
+        }
+    }
+
+    private fun visibilityForContext(buttonId: String, context: Int): Boolean {
+        // context values: 0=GAMEPLAY, 1=VIDEO, 2=BITMAP_CONFIRM, 3=MENU
+        return when (context) {
+            1 -> { // VIDEO: only dpad (for skip via directionals) and cancel-type buttons
+                buttonId == "btn_jump" // acts as skip in video
+            }
+            3, 2 -> { // MENU / BITMAP_CONFIRM: dpad, OK/Cancel
+                buttonId == "dpad" || buttonId == "btn_use" || buttonId == "btn_menu" || buttonId == "btn_jump"
+            }
+            else -> { // GAMEPLAY: all buttons visible
+                true
+            }
+        }
+    }
+
     private fun createMatchParentLayoutParams(): ViewGroup.LayoutParams =
         ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
 
@@ -474,5 +563,6 @@ class TouchOverlayController(
         private const val SYSTEM_BUTTON_SIZE_DP = 44
         private const val RECTANGLE_WIDTH_FACTOR = 1.55f
         private const val GRID_SIZE_DP = 16
+        private const val CONTEXT_SYNC_INTERVAL_MS = 250L
     }
 }

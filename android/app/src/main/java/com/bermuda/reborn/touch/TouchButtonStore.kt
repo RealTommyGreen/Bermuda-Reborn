@@ -26,7 +26,7 @@ class TouchButtonStore(private val filesDir: File) {
             val raw = configFile.readText()
             val config = jsonFormat.decodeFromString<TouchOverlayConfig>(raw)
             if (config.schemaVersion != TOUCH_OVERLAY_CONFIG_VERSION) {
-                Log.i(TAG, "Config version mismatch, migrating")
+                Log.i(TAG, "Config version mismatch (v${config.schemaVersion} -> v${TOUCH_OVERLAY_CONFIG_VERSION}), migrating")
                 val normalized = migrateConfig(config)
                 save(normalized)
                 normalized
@@ -67,31 +67,60 @@ class TouchButtonStore(private val filesDir: File) {
                 buttons = defaultButtons()
             )
         }
-        val updatedButtons = config.buttons.map { button ->
-            when (button.id) {
-                "btn_use" -> button.copy(label = "Use", icon = "use")
-                "btn_weapon" -> button.copy(label = "Weapon", icon = "weapon")
-                "btn_run" -> button.copy(label = "Run", icon = "run")
-                "btn_inv" -> button.copy(label = "Inventory", icon = "inventory")
-                "btn_status" -> button.copy(label = "Status", icon = "status")
-                "btn_menu" -> button.copy(label = "Menu", icon = "menu")
-                else -> button
-            }
-        }.toMutableList()
-        val hasJump = updatedButtons.any { button ->
-            button.id == "btn_jump" || button.actions.any { it.type == "key" && it.keyName?.uppercase() == "UP" }
+
+        // v7 → v9: update control_action buttons to keep positions, update actions & icons
+        val migratedButtons = config.buttons.map { button ->
+            val newActions = migrateActionsForButton(button)
+            val newIcon = migrateIconForButton(button)
+            val newLabel = migrateLabelForButton(button)
+            button.copy(actions = newActions, icon = newIcon, label = newLabel)
         }
-        if (!hasJump) {
-            defaultButtons().firstOrNull { it.id == "btn_jump" }?.let { updatedButtons.add(it) }
-        }
+
         return config.copy(
             schemaVersion = TOUCH_OVERLAY_CONFIG_VERSION,
             layoutLocked = true,
-            buttons = updatedButtons.map { button ->
-                if (button.actions.any { it.type == "dpad" }) button.copy(dpadDoubleTapRun = true)
-                else button.copy(dpadDoubleTapRun = false)
-            }
+            buttons = migratedButtons
         )
+    }
+
+    private val buttonActionMigrations: Map<String, List<TouchButtonAction>> = mapOf(
+        "btn_menu" to listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "menu_back")),
+        "btn_use"  to listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "use")),
+        "btn_run"  to listOf(TouchButtonAction(type = "control_action", mode = "hold", button = "run")),
+        "btn_weapon" to listOf(TouchButtonAction(type = "control_action", mode = "tap", button = "weapon_toggle")),
+        "btn_jump" to listOf(TouchButtonAction(type = "control_action", mode = "hold", button = "jump_button"))
+    )
+
+    private fun migrateActionsForButton(button: TouchButtonConfig): List<TouchButtonAction> {
+        return buttonActionMigrations[button.id] ?: button.actions
+    }
+
+    private val buttonIconMigrations: Map<String, String> = mapOf(
+        "btn_menu" to "menu",
+        "btn_use"  to "use",
+        "btn_run"  to "run",
+        "btn_weapon" to "weapon",
+        "btn_jump" to "jump",
+        "btn_status" to "status",
+        "btn_inv" to "inventory"
+    )
+
+    private fun migrateIconForButton(button: TouchButtonConfig): String? {
+        return buttonIconMigrations[button.id] ?: button.icon
+    }
+
+    private val buttonLabelMigrations: Map<String, String> = mapOf(
+        "btn_menu" to "Menu",
+        "btn_use"  to "Use",
+        "btn_run"  to "Run",
+        "btn_weapon" to "Weapon",
+        "btn_jump" to "Jump",
+        "btn_status" to "Status",
+        "btn_inv" to "Inventory"
+    )
+
+    private fun migrateLabelForButton(button: TouchButtonConfig): String {
+        return buttonLabelMigrations[button.id] ?: button.label
     }
 
     fun importFromJson(raw: String): TouchOverlayConfig =

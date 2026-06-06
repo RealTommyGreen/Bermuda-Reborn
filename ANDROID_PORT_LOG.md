@@ -126,6 +126,23 @@
 - `g_game` in `android_main.cpp` von `static` auf globale Sichtbarkeit geaendert
 - Build: Debug APK sauber (~18 MB)
 
+## Phase 15: Touch-UI, Icons, Config-Migration — Controls.md Phase 3 (2026-06-06)
+
+- 3 neue SVG-Icons aus `Bermuda_Syndrome_Icons/` importiert: `bs_fire.svg`, `bs_reload.svg`, `bs_sword.svg`
+- `iconset.json` um BS_Fire/BS_Reload/BS_Sword mit vollstaendigen Icon-Metadaten erweitert
+- `iconmappings.json` um `fire`→BS_Fire, `reload`→BS_Reload, `sword`→BS_Sword ergaenzt
+- `TOUCH_OVERLAY_CONFIG_VERSION` auf 9 erhoeht
+- Default-Buttons auf `control_action` type umgestellt:
+  - `btn_run` → `run` (hold), `btn_jump` → `jump_button` (hold), `btn_weapon` → `weapon_toggle` (tap), `btn_use` → `use` (tap), `btn_menu` → `menu_back` (tap)
+- Presets: `run`/`jump`/`weapon`/`menu`/`use` auf `control_action` type mit `controlActionPreset()` Helper
+- TouchButtonStore-Migration: `migrateActionsForButton()` aktualisiert bekannte `btn_*` Actions auf `control_action`; `migrateIconForButton()`/`migrateLabelForButton()` updaten Icons/Labels; Positionen bleiben erhalten
+- `TouchOverlayController`: `syncContextSensitiveState()` pollt alle 250ms `nativeGetTouchInputContext()` + `nativeGetControlState()`
+  - Video-Kontext: nur `btn_jump` sichtbar (als Skip)
+  - Menu/Bitmap-Kontext: nur D-Pad, `btn_use` (OK), `btn_menu` (Cancel), `btn_jump` sichtbar
+  - Gameplay: alle Buttons sichtbar
+- Runtime-Icon-Switching: Gun drawn → `btn_run` icon="fire", `btn_jump` icon="reload"; Sword drawn → `btn_run` icon="sword"; unbewaffnet → normale Icons
+- Build: Debug APK sauber (~18 MB)
+
 ---
 
 ---

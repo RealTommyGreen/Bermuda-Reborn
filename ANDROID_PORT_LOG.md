@@ -733,6 +733,53 @@ Lokaler Check:
 
 ---
 
+## Bugfix: Inventory 4:3 im Stretched-Mode & Weapon-Icon-State (2026-06-06)
+
+Status: **Behoben, Release-APK per ADB installiert und vom Nutzer als funktionierend bestaetigt. Committed.**
+
+### Fix 1: Inventory erzwingt im Widescreen-Stretched-Mode wieder 4:3
+
+Ursache: `game.cpp:216` (`setScreenMode`) und `game.cpp:400` (`mainLoop` State-Übergang) setzten `setStretchGameplay(true)` nur fuer `_state == kStateGame`. Beim Wechsel zu `kStateBag` (Inventar) wurde der Stretch deaktiviert.
+
+Fix: Beide Conditions auf `(_state == kStateGame || _state == kStateBag)` erweitert. Inventar bleibt jetzt im selben gestreckten Output-Modus wie Gameplay.
+
+### Fix 2: Weapon-Icon-State schaltet zu frueh auf Fire/Sword/Reload
+
+Ursache (zweistufig):
+1. `engineControlState()` meldete `GUN_DRAWN`/`SWORD_DRAWN` sofort, sobald `_controlGunDrawn`/`_controlSwordDrawn` in `handleWeaponToggle()` gesetzt wurde — noch bevor die Engine den SPACE-Key verarbeitet hatte.
+2. `handleWeaponToggle()` setzte `_controlGunDrawn = true`/`_controlSwordDrawn = true` direkt im Draw-Pfad. Wenn die Engine den Key ignorierte (Jack in Auslauf-Animation), blieb der Drawn-State true. Der nächste Weapon-Tap ging dann in den Holster-Pfad statt den Draw zu wiederholen.
+
+Fix:
+- `engineControlState()`: Cross-Check mit `_varsTable[2] == 1` (Gun aktiv) / `_varsTable[1] == 1` (Sword aktiv) vor dem Melden von `GUN_DRAWN`/`SWORD_DRAWN`.
+- `_weaponToggleDrawRequested`-Flag (game.h:506) eingefuehrt.
+- Draw-Pfad setzt nur noch `_weaponToggleDrawRequested = true`, nicht mehr `_control*Drawn`.
+- Frame-Sync in `updateKeysPressedTable()`: Nach Ablauf des Busy-Fensters (`_weaponToggleBusyFrames == 0`) wird `_varsTable[_controlSelectedWeapon] == 1` geprueft. Bei Bestaetigung → `_control*Drawn = true`. Ohne Bestaetigung → `_control*Drawn` bleibt false, naechster Tap wiederholt Draw.
+- Holster-Pfad setzt `_weaponToggleDrawRequested = false`.
+
+Geaenderte Dateien: `game.h`, `game.cpp`
+
+---
+## Offene technische Bugs fuer naechsten Fix-Pass (2026-06-06)
+
+Status: **Bug 1 & 2 behoben, Bug 3 noch offen.**
+
+### 3. Overlay-Set-Wechsel reagiert zu traege
+
+Symptom:
+- Wechsel zwischen Gameplay/Menu oder Gameplay/Inventar fuehlt sich leicht verzoegert an.
+- Die Button-Sets und Icons erscheinen erst nach dem naechsten Polling-Intervall.
+
+Fix-Anweisung:
+- Aktuell laeuft der Kontextabgleich im Overlay polling-basiert (`CONTEXT_SYNC_INTERVAL_MS`, derzeit 250 ms).
+- Intervall reduzieren oder, besser, Kontextwechsel eventnah triggern:
+  - Native/SDL kann bei Statewechseln eine Java-Sync-Anforderung ausloesen, oder
+  - Android kann beim naechsten Frame/Touch-Loop kurzfristig sofort `syncContextSensitiveState()` ausfuehren, wenn sich `nativeGetTouchInputContext()` geaendert hat.
+- Falls Polling bleibt, testweise auf 50-100 ms senken und Performance/CPU auf Geraet pruefen.
+- Wichtig: Button-Positionen beim Wechsel weiter korrekt aus `buttons` vs. `menu_buttons` laden und keine Drag-/Save-Operationen durch schnellere Syncs verlieren.
+- Regressionstest: Hauptmenue -> Gameplay, Gameplay -> Inventar, Inventar -> Gameplay und Video/Menu-Confirm pruefen; sichtbares Button-Set sollte ohne wahrnehmbare Verzoegerung wechseln.
+
+---
+
 ## Build (Release APK)
 
 ```powershell

@@ -503,6 +503,7 @@ struct Game {
 	int _controlSelectedWeapon;
 	int _weaponToggleBusyFrames;
 	bool _pendingWeaponToggle;
+	bool _weaponToggleDrawRequested;
 	int _reloadPhase;
 	int _reloadFrameCounter;
 	bool _reloadWasCrouched;

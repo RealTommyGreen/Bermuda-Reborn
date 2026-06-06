@@ -138,6 +138,7 @@ void Game::restart() {
 	_controlSelectedWeapon = 0;
 	_weaponToggleBusyFrames = 0;
 	_pendingWeaponToggle = false;
+	_weaponToggleDrawRequested = false;
 	_reloadPhase = 0;
 	_reloadFrameCounter = 0;
 	_reloadWasCrouched = false;
@@ -213,7 +214,7 @@ void Game::setCheatMask(uint32_t mask) {
 
 void Game::setScreenMode(int mode) {
 	_screenMode = mode;
-	_stub->setStretchGameplay(mode == SCREEN_MODE_16_9 && _state == kStateGame);
+	_stub->setStretchGameplay(mode == SCREEN_MODE_16_9 && (_state == kStateGame || _state == kStateBag));
 }
 
 void Game::setTouchInventoryEnabled(bool enabled) {
@@ -256,6 +257,7 @@ void Game::handleWeaponToggle() {
 		_keysPressed[32] = 0;
 		_controlGunDrawn = false;
 		_controlSwordDrawn = false;
+		_weaponToggleDrawRequested = false;
 		toggleStarted = true;
 	} else if (_varsTable[2] >= 1 || _varsTable[1] >= 1) {
 		if (_controlSelectedWeapon == 1 && _varsTable[1] != 0) {
@@ -274,8 +276,7 @@ void Game::handleWeaponToggle() {
 
 		_keysPressed[32] = 1; // SPACE = original draw weapon action
 		_keysPressed[16] = 0;
-		_controlGunDrawn = _controlSelectedWeapon == 2;
-		_controlSwordDrawn = _controlSelectedWeapon == 1;
+		_weaponToggleDrawRequested = true;
 		toggleStarted = true;
 	}
 	if (toggleStarted) {
@@ -346,10 +347,11 @@ void Game::finishReloadIfComplete() {
 
 int Game::engineControlState() const {
 	int state = 0;
-	// CONTROL_STATE_* matching systemstub.h
-	if (isGunDrawn())       state |= 1 << 0; // GUN_DRAWN
-	if (isSwordDrawn())      state |= 1 << 1; // SWORD_DRAWN
-	if (isGunDrawn() && !_reloadPhase) state |= 1 << 2; // CAN_RELOAD
+	bool confirmedGunDrawn = isGunDrawn() && _varsTable[2] == 1;
+	bool confirmedSwordDrawn = isSwordDrawn() && _varsTable[1] == 1;
+	if (confirmedGunDrawn)   state |= 1 << 0; // GUN_DRAWN
+	if (confirmedSwordDrawn)  state |= 1 << 1; // SWORD_DRAWN
+	if (confirmedGunDrawn && !_reloadPhase) state |= 1 << 2; // CAN_RELOAD
 	if (_reloadPhase)        state |= 1 << 3; // RELOAD_BUSY
 	if (_lifeBarDisplayed)   state |= 1 << 4; // STATUS_VISIBLE
 	return state;
@@ -397,7 +399,7 @@ void Game::mainLoop() {
 		}
 		_state = _nextState;
 		if (_screenMode == SCREEN_MODE_16_9) {
-			_stub->setStretchGameplay(_state == kStateGame);
+			_stub->setStretchGameplay(_state == kStateGame || _state == kStateBag);
 		} else {
 			_stub->setStretchGameplay(false);
 		}
@@ -594,6 +596,16 @@ void Game::updateKeysPressedTable() {
 	}
 	if (_weaponToggleBusyFrames > 0) {
 		--_weaponToggleBusyFrames;
+		if (_weaponToggleBusyFrames == 0 && _weaponToggleDrawRequested) {
+			_weaponToggleDrawRequested = false;
+			if (_controlSelectedWeapon == 1 && _varsTable[1] == 1) {
+				_controlSwordDrawn = true;
+				_controlGunDrawn = false;
+			} else if (_controlSelectedWeapon == 2 && _varsTable[2] == 1) {
+				_controlGunDrawn = true;
+				_controlSwordDrawn = false;
+			}
+		}
 		if (weaponToggleRequested) {
 			_pendingWeaponToggle = true;
 			weaponToggleRequested = false;

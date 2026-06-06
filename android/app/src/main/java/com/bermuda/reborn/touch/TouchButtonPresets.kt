@@ -71,6 +71,7 @@ private fun actionMatches(expected: TouchButtonAction, actual: TouchButtonAction
         "key_combo" -> expected.keyCodes == actual.keyCodes
                 && expected.keyNames.map { it.uppercase() } == actual.keyNames.map { it.uppercase() }
         "dpad" -> true
+        "control_action" -> expected.button?.lowercase() == actual.button?.lowercase()
         else -> false
     }
 }

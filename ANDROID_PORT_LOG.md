@@ -102,6 +102,17 @@
 - 11 SVG resources + `iconset.json` + `iconmappings.json` in `res/raw/`
 - OK/Cancel icons included for future menu overlay system
 
+## Phase 13: Native Control-Grundlage — Controls.md Phase 1 (2026-06-06)
+
+- `systemstub.h`: `CONTROL_ACTION_*` enum (RUN, JUMP_BUTTON, WEAPON_TOGGLE, USE, MENU_BACK, RELOAD), `CONTROL_STATE_*` bitmask enum (GUN_DRAWN, SWORD_DRAWN, CAN_RELOAD, RELOAD_BUSY, STATUS_VISIBLE)
+- `PlayerInput` extended: `runAction`, `jumpButtonAction`, `weaponToggleAction`, `reloadAction` semantic fields
+- Touch contexts split: `TOUCH_INPUT_CONTEXT_GAMEPLAY`, `VIDEO`, `BITMAP_CONFIRM`, `MENU`
+- `SystemStub` base: `performControlAction(action, pressed)` + `getControlState()` virtual methods
+- `systemstub_sdl.cpp`: `performControlAction` maps control actions to both semantic and raw PlayerInput fields; `getControlState` stub for Phase 2; `_videoPlaybackActive` flag; updated `getTouchInputContext()` for VIDEO/BITMAP_CONFIRM separation; `applyAction` sets semantic fields alongside raw inputs
+- JNI: `nativePerformControlAction(action, pressed)` + `nativeGetControlState()` in `android_main.cpp` + `BermudaActivity.kt`
+- `TouchInputDispatcher.kt`: `control_action` type handling via `dispatchControlAction()`, `controlActionByName()`, context constants updated to match C++ enum values
+- `TouchButtonPresets.kt`: `control_action` in `actionMatches`
+
 ---
 
 ---

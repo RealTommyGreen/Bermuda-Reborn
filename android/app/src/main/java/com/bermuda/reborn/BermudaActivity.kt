@@ -32,6 +32,12 @@ class BermudaActivity : SDLActivity() {
 
         @JvmStatic
         external fun nativeGetTouchInputContext(): Int
+
+        @JvmStatic
+        external fun nativePerformControlAction(action: Int, pressed: Boolean)
+
+        @JvmStatic
+        external fun nativeGetControlState(): Int
     }
 
     private var touchOverlayController: TouchOverlayController? = null

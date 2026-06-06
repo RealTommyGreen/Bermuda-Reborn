@@ -131,6 +131,7 @@ struct SystemStub_SDL : SystemStub {
 	bool _controllerEnabled;
 	bool _dpadDoubleTapRunEnabled;
 	bool _controllerVideoMode;
+	bool _videoPlaybackActive;
 	uint32_t _lastDpadLeftTime;
 	uint32_t _lastDpadRightTime;
 	bool _dpadLeftWasDouble;
@@ -149,6 +150,7 @@ struct SystemStub_SDL : SystemStub {
 		_controllerEnabled(false),
 		_dpadDoubleTapRunEnabled(false),
 		_controllerVideoMode(false),
+		_videoPlaybackActive(false),
 		_lastDpadLeftTime(0),
 		_lastDpadRightTime(0),
 		_dpadLeftWasDouble(false),
@@ -188,9 +190,10 @@ struct SystemStub_SDL : SystemStub {
 	virtual int getOutputSampleRate();
 	virtual Mixer *getMixer() { return _mixer; }
 	virtual void setStretchGameplay(bool stretch) { _stretchGameplay = stretch; }
-	virtual void setVideoPlaybackActive(bool active) { _controllerVideoMode = active; }
+	virtual void setVideoPlaybackActive(bool active) { _controllerVideoMode = active; _videoPlaybackActive = active; }
 	virtual int getTouchInputContext() const {
-		if (_controllerVideoMode || isBitmapState()) return TOUCH_INPUT_CONTEXT_CONFIRM;
+		if (_videoPlaybackActive) return TOUCH_INPUT_CONTEXT_VIDEO;
+		if (isBitmapState()) return TOUCH_INPUT_CONTEXT_BITMAP_CONFIRM;
 		if (isMenuState() || isDialogueState()) return TOUCH_INPUT_CONTEXT_MENU;
 		return TOUCH_INPUT_CONTEXT_GAMEPLAY;
 	}
@@ -201,6 +204,8 @@ struct SystemStub_SDL : SystemStub {
 	void handleControllerButton(const SDL_Event &ev);
 	void handleControllerAxis(const SDL_Event &ev);
 	void applyAction(int action, bool pressed);
+	void performControlAction(int action, bool pressed) override;
+	int getControlState() const override;
 	void setFullscreen(bool fullscreen);
 #if SDL_VERSION_ATLEAST(2, 0, 0)
 	void getAndroidOutputSize(int *w, int *h) const;
@@ -284,13 +289,16 @@ void SystemStub_SDL::setControllerConfig(bool enabled, const char *mappingJson, 
 void SystemStub_SDL::applyAction(int action, bool pressed) {
 	switch (action) {
 	case kActionJump:
+		_pi.jumpButtonAction = pressed;
 		if (pressed) _pi.dirMask |= PlayerInput::DIR_UP;
 		else        _pi.dirMask &= ~PlayerInput::DIR_UP;
 		break;
 	case kActionRun:
+		_pi.runAction = pressed;
 		_pi.shift = pressed;
 		break;
 	case kActionWeapon:
+		_pi.weaponToggleAction = pressed;
 		_pi.space = pressed;
 		break;
 	case kActionUse:
@@ -312,6 +320,44 @@ void SystemStub_SDL::applyAction(int action, bool pressed) {
 		_pi.ctrl = pressed;
 		break;
 	}
+}
+
+void SystemStub_SDL::performControlAction(int action, bool pressed) {
+	switch (action) {
+	case CONTROL_ACTION_RUN:
+		_pi.runAction = pressed;
+		_pi.shift = pressed;
+		break;
+	case CONTROL_ACTION_JUMP_BUTTON:
+		_pi.jumpButtonAction = pressed;
+		if (pressed) _pi.dirMask |= PlayerInput::DIR_UP;
+		else        _pi.dirMask &= ~PlayerInput::DIR_UP;
+		break;
+	case CONTROL_ACTION_WEAPON_TOGGLE:
+		if (pressed) {
+			_pi.weaponToggleAction = true;
+			_pi.space = true;
+		}
+		break;
+	case CONTROL_ACTION_USE:
+		if (pressed) _pi.enter = true;
+		break;
+	case CONTROL_ACTION_MENU_BACK:
+		if (pressed) _pi.escape = true;
+		break;
+	case CONTROL_ACTION_RELOAD:
+		_pi.reloadAction = pressed;
+		break;
+	}
+}
+
+int SystemStub_SDL::getControlState() const {
+	int state = 0;
+	if (g_gameStatePtr) {
+		// Phase 2 will populate gun/sword/reload state from Engine.
+		// Phase 1 stub: always return 0.
+	}
+	return state;
 }
 
 // ---- Controller event handlers ----

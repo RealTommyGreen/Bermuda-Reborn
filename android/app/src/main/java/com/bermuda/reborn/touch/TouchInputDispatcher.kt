@@ -32,6 +32,7 @@ class TouchInputDispatcher {
             "key" -> dispatchKeyAction(action, pressed)
             "key_combo" -> dispatchKeyComboAction(action, pressed)
             "text" -> dispatchTextAction(action, pressed)
+            "control_action" -> dispatchControlAction(action, pressed)
             "dpad" -> Unit
             else -> Log.w(TAG, "Unknown action type: ${action.type}")
         }
@@ -121,7 +122,7 @@ class TouchInputDispatcher {
         }
 
         val keyCode = when {
-            buttonId == "btn_jump" && (context == TOUCH_CONTEXT_CONFIRM || context == TOUCH_CONTEXT_MENU) ->
+            buttonId == "btn_jump" && (context == TOUCH_CONTEXT_BITMAP_CONFIRM || context == TOUCH_CONTEXT_MENU || context == TOUCH_CONTEXT_VIDEO) ->
                 KeyEvent.KEYCODE_ENTER
             buttonId == "btn_weapon" && context == TOUCH_CONTEXT_MENU ->
                 KeyEvent.KEYCODE_ESCAPE
@@ -235,6 +236,18 @@ class TouchInputDispatcher {
         }
     }
 
+    private fun dispatchControlAction(action: TouchButtonAction, pressed: Boolean) {
+        val controlAction = action.button?.let { controlActionByName(it) } ?: run {
+            Log.w(TAG, "Unknown control_action button: ${action.button}")
+            return
+        }
+        try {
+            BermudaActivity.nativePerformControlAction(controlAction, pressed)
+        } catch (e: UnsatisfiedLinkError) {
+            Log.w(TAG, "nativePerformControlAction not available: ${e.message}")
+        }
+    }
+
     private fun dispatchTextAction(action: TouchButtonAction, pressed: Boolean) {
         if (!pressed) return
         val text = action.text ?: return
@@ -257,8 +270,9 @@ class TouchInputDispatcher {
         private const val ACTION_DOWN = 0
         private const val ACTION_UP = 1
         private const val TOUCH_CONTEXT_GAMEPLAY = 0
-        private const val TOUCH_CONTEXT_CONFIRM = 1
-        private const val TOUCH_CONTEXT_MENU = 2
+        private const val TOUCH_CONTEXT_VIDEO = 1
+        private const val TOUCH_CONTEXT_BITMAP_CONFIRM = 2
+        private const val TOUCH_CONTEXT_MENU = 3
 
         fun toMouseButton(name: String?): Int = when (name?.lowercase()) {
             "right" -> MotionEvent.BUTTON_SECONDARY
@@ -309,6 +323,16 @@ class TouchInputDispatcher {
             "SHIFT" -> KeyEvent.KEYCODE_SHIFT_LEFT
             "CTRL" -> KeyEvent.KEYCODE_CTRL_LEFT
             "ALT" -> KeyEvent.KEYCODE_ALT_LEFT
+            else -> null
+        }
+
+        fun controlActionByName(name: String): Int? = when (name.lowercase()) {
+            "run" -> 0       // CONTROL_ACTION_RUN
+            "jump_button" -> 1  // CONTROL_ACTION_JUMP_BUTTON
+            "weapon_toggle" -> 2 // CONTROL_ACTION_WEAPON_TOGGLE
+            "use" -> 3       // CONTROL_ACTION_USE
+            "menu_back" -> 4  // CONTROL_ACTION_MENU_BACK
+            "reload" -> 5    // CONTROL_ACTION_RELOAD
             else -> null
         }
 

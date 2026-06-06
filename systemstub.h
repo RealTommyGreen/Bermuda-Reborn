@@ -10,6 +10,23 @@
 
 struct Mixer;
 
+enum {
+	CONTROL_ACTION_RUN = 0,
+	CONTROL_ACTION_JUMP_BUTTON = 1,
+	CONTROL_ACTION_WEAPON_TOGGLE = 2,
+	CONTROL_ACTION_USE = 3,
+	CONTROL_ACTION_MENU_BACK = 4,
+	CONTROL_ACTION_RELOAD = 5
+};
+
+enum {
+	CONTROL_STATE_GUN_DRAWN   = 1 << 0,
+	CONTROL_STATE_SWORD_DRAWN  = 1 << 1,
+	CONTROL_STATE_CAN_RELOAD   = 1 << 2,
+	CONTROL_STATE_RELOAD_BUSY  = 1 << 3,
+	CONTROL_STATE_STATUS_VISIBLE = 1 << 4
+};
+
 struct PlayerInput {
 	enum {
 		DIR_UP    = 1 << 0,
@@ -30,6 +47,11 @@ struct PlayerInput {
 	bool load;
 	int stateSlot;
 	bool fastMode;
+	// semantic control actions set via performControlAction
+	bool runAction;
+	bool jumpButtonAction;
+	bool weaponToggleAction;
+	bool reloadAction;
 };
 
 enum {
@@ -40,7 +62,8 @@ enum {
 
 enum {
 	TOUCH_INPUT_CONTEXT_GAMEPLAY,
-	TOUCH_INPUT_CONTEXT_CONFIRM,
+	TOUCH_INPUT_CONTEXT_VIDEO,
+	TOUCH_INPUT_CONTEXT_BITMAP_CONFIRM,
 	TOUCH_INPUT_CONTEXT_MENU
 };
 
@@ -73,6 +96,8 @@ struct SystemStub {
 	virtual void setControllerConfig(bool enabled, const char *mappingJson, bool dpadDoubleTapRun) {}
 	virtual void setVideoPlaybackActive(bool active) {}
 	virtual int getTouchInputContext() const { return TOUCH_INPUT_CONTEXT_GAMEPLAY; }
+	virtual void performControlAction(int action, bool pressed) {}
+	virtual int getControlState() const { return 0; }
 
 	virtual void processEvents() = 0;
 	virtual void sleep(int duration) = 0;

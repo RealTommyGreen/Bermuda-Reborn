@@ -86,6 +86,19 @@ JNIEXPORT jint JNICALL Java_com_bermuda_reborn_BermudaActivity_nativeGetTouchInp
     return g_stub->getTouchInputContext();
 }
 
+JNIEXPORT void JNICALL Java_com_bermuda_reborn_BermudaActivity_nativePerformControlAction(JNIEnv *env, jclass cls, jint action, jboolean pressed) {
+    if (g_stub) {
+        g_stub->performControlAction(action, pressed);
+    }
+}
+
+JNIEXPORT jint JNICALL Java_com_bermuda_reborn_BermudaActivity_nativeGetControlState(JNIEnv *env, jclass cls) {
+    if (!g_stub) {
+        return 0;
+    }
+    return g_stub->getControlState();
+}
+
 }
 
 extern "C" int SDL_main(int argc, char *argv[]) {

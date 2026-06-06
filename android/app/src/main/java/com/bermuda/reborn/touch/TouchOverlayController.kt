@@ -9,6 +9,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.TextView
 import android.widget.Toast
 import com.bermuda.reborn.BermudaActivity
 import kotlinx.serialization.encodeToString
@@ -35,6 +36,7 @@ class TouchOverlayController(
     private var schlossButton: TouchOverlayLockButtonView? = null
     private var gearButton: TouchOverlaySettingsButtonView? = null
     private var gridView: TouchOverlayGridView? = null
+    private var editHintBar: TextView? = null
     private var contextSyncRunnable: Runnable? = null
     private var lastSyncContext = -1
     private var lastSyncGunDrawn = false
@@ -72,6 +74,7 @@ class TouchOverlayController(
             captureContainerSize()
             createGridView()
             createSystemButtons()
+            createEditHintBar()
             createButtonViews()
             syncGlobalConfigToButtonViews()
             updateSchlossButtonState()
@@ -84,6 +87,8 @@ class TouchOverlayController(
         removeAllButtonViews()
         removeSystemButtons()
         removeGridView()
+        editHintBar?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        editHintBar = null
         root.removeOnLayoutChangeListener(layoutChangeListener)
         overlayContainer?.let { (it.parent as? ViewGroup)?.removeView(it) }
         overlayContainer = null
@@ -176,6 +181,31 @@ class TouchOverlayController(
         }
     }
 
+    private fun createEditHintBar() {
+        val container = overlayContainer ?: return
+        if (editHintBar != null) return
+        val bar = TextView(activity).apply {
+            text = "Move Buttons around freely. Hold a button, to edit size and shape"
+            setTextColor(0xFFFFFFFF.toInt())
+            textSize = 12f
+            gravity = Gravity.CENTER
+            setBackgroundColor(0xAA000000.toInt())
+            setPadding(12.dpToPx(), 6.dpToPx(), 12.dpToPx(), 6.dpToPx())
+            isClickable = false; isFocusable = false
+            visibility = if (config?.layoutLocked == false) View.VISIBLE else View.GONE
+        }
+        editHintBar = bar
+        val params = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            bottomMargin = 0
+            leftMargin = 16.dpToPx(); rightMargin = 16.dpToPx()
+        }
+        container.addView(bar, params)
+    }
+
     private fun removeGridView() {
         gridView?.let { (it.parent as? ViewGroup)?.removeView(it) }
         gridView = null
@@ -220,6 +250,7 @@ class TouchOverlayController(
         val cfg = config ?: return
         schlossButton?.setLocked(cfg.layoutLocked)
         gearButton?.visibility = if (cfg.layoutLocked) View.GONE else View.VISIBLE
+        editHintBar?.visibility = if (cfg.layoutLocked) View.GONE else View.VISIBLE
     }
 
     private fun onGearTapped() {

@@ -1031,3 +1031,21 @@ Fix:
 Lokaler Check:
 - `android/gradlew.bat :app:assembleRelease` erfolgreich
 - Release-APK per `adb install -r` erfolgreich installiert auf `DEVICE_SERIAL`
+
+---
+
+## Edit-Hinweis-Leiste bei entsperrtem Layout (2026-06-06)
+
+Status: **Umgesetzt, Release-APK per ADB installiert und vom Nutzer bestaetigt.**
+
+Ausgangspunkt:
+- Beim Entsperren des Layouts (Lock-Button) erschienen Grid-Raster und Settings-Button, aber es gab keinen Hinweistext fuer den Nutzer, was er jetzt tun kann.
+
+Fix:
+- `TouchOverlayController.kt`: `createEditHintBar()` erzeugt eine `TextView` mit dem Text "Move Buttons around freely. Hold a button, to edit size and shape", 12sp weiss auf halbtransparentem Schwarz, mittig am unteren Bildschirmrand (`bottomMargin = 0`).
+- Sichtbarkeit wird in `updateSchlossButtonState()` synchron mit Grid und Gear-Button getoggelt.
+- Cleanup in `detach()`.
+
+Lokaler Check:
+- `android/gradlew.bat :app:assembleRelease` erfolgreich
+- Release-APK per `adb install -r` erfolgreich installiert auf `DEVICE_SERIAL`

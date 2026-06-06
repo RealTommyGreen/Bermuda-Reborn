@@ -1058,3 +1058,19 @@ Status: **Umgesetzt, noch nicht gebaut.**
 
 Fix:
 - `menu.cpp:330`: `drawMenuText(...)` mit "ENTER SELECTS    ESC CANCELS" entfernt. Der Hinweistext war im Touch-Overlay ueberfluessig.
+
+---
+
+## RESTORE GAME / SAVE GAME Titel im Menue zentriert (2026-06-06)
+
+Status: **Umgesetzt, Release-APK per ADB installiert und vom Nutzer bestaetigt.**
+
+Ausgangspunkt:
+- Die Ueberschriften "RESTORE GAME" und "SAVE GAME" im Save/Lade-Menue waren linksbuendig bei festem x=238 gezeichnet, statt mittig im Menue-Kasten.
+
+Fix:
+- `menu.cpp:300`: Text-x wird jetzt dynamisch aus `getTextWidth()` berechnet: `titleX = 106 + (428 - textWidth) / 2`, zentriert im 428px breiten Menue-Kasten.
+
+Lokaler Check:
+- `android/gradlew.bat :app:assembleRelease` erfolgreich
+- Release-APK per `adb install -r` erfolgreich installiert auf `DEVICE_SERIAL`

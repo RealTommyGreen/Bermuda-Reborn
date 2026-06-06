@@ -297,7 +297,11 @@ void Game::drawSlotMenu(bool loadMode) {
 
 	_stub->darkenRect(96, 64, 448, 364);
 	_stub->fillRect(106, 76, 428, 340, bgColor);
-	drawMenuText(_stub, 238, 100, loadMode ? "RESTORE GAME" : "SAVE GAME", textColor);
+	{
+		const char *title = loadMode ? "RESTORE GAME" : "SAVE GAME";
+		const int titleX = 106 + (428 - getTextWidth(title)) / 2;
+		drawMenuText(_stub, titleX, 100, title, textColor);
+	}
 
 	static const int x0 = 122;
 	static const int y0 = 120;

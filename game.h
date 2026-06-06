@@ -500,6 +500,7 @@ struct Game {
 	int _stateSlot;
 	bool _controlGunDrawn;
 	bool _controlSwordDrawn;
+	int _controlSelectedWeapon;
 	int _reloadPhase;
 	int _reloadFrameCounter;
 	bool _reloadWasCrouched;

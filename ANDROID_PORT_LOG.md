@@ -407,6 +407,39 @@ Erwartung fuer naechsten Device-Test:
 
 ---
 
+## Device-Test-Fix 6: Inventar-Waffenwahl fuer Weapon-Toggle erhalten (2026-06-06)
+
+Status: **Fix umgesetzt und signierte Release-APK fuer Device-Test installiert. Keine Freigabe fuer APK-Upload auf Drive.**
+
+Ausgangspunkt:
+- Waffe ziehen/wegstecken und Icon-Umschaltung funktionieren.
+- Wechsel Gewehr/Schwert wurde nicht stabil uebernommen:
+  - im Holster wurde Inventarwahl Schwert nicht beim naechsten Ziehen verwendet
+  - nach Holstern wurde wieder Gewehr statt zuletzt gewaehltem Schwert gezogen
+
+Ursache:
+- Control-Drawn-State war getrennt, aber die zuletzt gewaehlte Waffe wurde nicht gespeichert.
+- Beim Draw wurde Gun bevorzugt, sobald Gun verfuegbar war.
+
+Fix:
+- `game.cpp`/`game.h`: `_controlSelectedWeapon` eingefuehrt.
+- Inventar-Selection aus `_varsTable[1] == 1` (Schwert) und `_varsTable[2] == 1` (Gun) wird im Frame-Update uebernommen.
+- Weapon-Toggle nutzt beim Ziehen die zuletzt gewaehlte Waffe und setzt die Engine-Vars vor dem SPACE-Puls passend auf diese Auswahl.
+- Wenn waehrend gezogener Waffe im Inventar umgeschaltet wird, folgt der Control-Drawn-State der aktiven Auswahl.
+
+Lokaler Check:
+- Branch: `Reborn`
+- Build: `android/gradlew.bat :app:assembleDebug` erfolgreich
+- Build: `android/gradlew.bat :app:assembleRelease` erfolgreich
+- Signierte Release-APK per `adb install -r` erfolgreich installiert
+
+Erwartung fuer naechsten Device-Test:
+- Holstered: im Inventar Schwert waehlen, Weapon zieht Schwert.
+- Schwert holstern, Weapon zieht wieder Schwert.
+- Im gezogenen Zustand zwischen Gun/Schwert wechseln, Fire/Sword-Icon folgt korrekt.
+
+---
+
 ## Build (Release APK)
 
 ```powershell

@@ -135,6 +135,7 @@ void Game::restart() {
 	_lifeBarDisplayed2 = _lifeBarDisplayed = true;
 	_controlGunDrawn = false;
 	_controlSwordDrawn = false;
+	_controlSelectedWeapon = 0;
 	_reloadPhase = 0;
 	_reloadFrameCounter = 0;
 	_reloadWasCrouched = false;
@@ -239,16 +240,36 @@ bool Game::isSwordDrawn() const {
 }
 
 void Game::handleWeaponToggle() {
+	if (_varsTable[1] == 1) {
+		_controlSelectedWeapon = 1;
+	} else if (_varsTable[2] == 1) {
+		_controlSelectedWeapon = 2;
+	}
+
 	if (isJackArmed()) {
 		_keysPressed[16] = 1; // SHIFT = original holster action
 		_keysPressed[32] = 0;
 		_controlGunDrawn = false;
 		_controlSwordDrawn = false;
 	} else if (_varsTable[2] >= 1 || _varsTable[1] >= 1) {
+		if (_controlSelectedWeapon == 1 && _varsTable[1] != 0) {
+			_varsTable[1] = 1;
+			if (_varsTable[2] != 0) _varsTable[2] = 2;
+		} else if (_controlSelectedWeapon == 2 && _varsTable[2] != 0) {
+			_varsTable[2] = 1;
+			if (_varsTable[1] != 0) _varsTable[1] = 2;
+		} else if (_varsTable[1] == 1) {
+			_controlSelectedWeapon = 1;
+		} else if (_varsTable[2] == 1) {
+			_controlSelectedWeapon = 2;
+		} else {
+			_controlSelectedWeapon = _varsTable[2] != 0 ? 2 : 1;
+		}
+
 		_keysPressed[32] = 1; // SPACE = original draw weapon action
 		_keysPressed[16] = 0;
-		_controlGunDrawn = _varsTable[2] >= 1;
-		_controlSwordDrawn = !_controlGunDrawn && _varsTable[1] >= 1;
+		_controlGunDrawn = _controlSelectedWeapon == 2;
+		_controlSwordDrawn = _controlSelectedWeapon == 1;
 	}
 }
 
@@ -560,6 +581,20 @@ void Game::updateKeysPressedTable() {
 	const bool weaponToggleRequested = _stub->_pi.weaponToggleAction;
 	if (_stub->_pi.weaponToggleAction) {
 		_stub->_pi.weaponToggleAction = false;
+	}
+
+	if (_varsTable[1] == 1) {
+		_controlSelectedWeapon = 1;
+		if (_controlGunDrawn || _controlSwordDrawn) {
+			_controlGunDrawn = false;
+			_controlSwordDrawn = true;
+		}
+	} else if (_varsTable[2] == 1) {
+		_controlSelectedWeapon = 2;
+		if (_controlGunDrawn || _controlSwordDrawn) {
+			_controlGunDrawn = true;
+			_controlSwordDrawn = false;
+		}
 	}
 
 	// -- Run/Fire: semantic runAction maps to SHIFT (run) or SPACE (fire) depending on weapon --

@@ -240,10 +240,12 @@ bool Game::isSwordDrawn() const {
 }
 
 void Game::handleWeaponToggle() {
-	if (_varsTable[1] == 1) {
-		_controlSelectedWeapon = 1;
-	} else if (_varsTable[2] == 1) {
-		_controlSelectedWeapon = 2;
+	if (isJackArmed()) {
+		if (_varsTable[1] == 1) {
+			_controlSelectedWeapon = 1;
+		} else if (_varsTable[2] == 1) {
+			_controlSelectedWeapon = 2;
+		}
 	}
 
 	if (isJackArmed()) {
@@ -583,17 +585,25 @@ void Game::updateKeysPressedTable() {
 		_stub->_pi.weaponToggleAction = false;
 	}
 
-	if (_varsTable[1] == 1) {
-		_controlSelectedWeapon = 1;
-		if (_controlGunDrawn || _controlSwordDrawn) {
+	if (_controlGunDrawn || _controlSwordDrawn) {
+		if (_varsTable[1] == 1) {
+			_controlSelectedWeapon = 1;
 			_controlGunDrawn = false;
 			_controlSwordDrawn = true;
-		}
-	} else if (_varsTable[2] == 1) {
-		_controlSelectedWeapon = 2;
-		if (_controlGunDrawn || _controlSwordDrawn) {
+		} else if (_varsTable[2] == 1) {
+			_controlSelectedWeapon = 2;
 			_controlGunDrawn = true;
 			_controlSwordDrawn = false;
+		}
+	} else if (_controlSelectedWeapon == 0) {
+		if (_varsTable[1] == 1) {
+			_controlSelectedWeapon = 1;
+		} else if (_varsTable[2] == 1) {
+			_controlSelectedWeapon = 2;
+		} else if (_varsTable[1] != 0) {
+			_controlSelectedWeapon = 1;
+		} else if (_varsTable[2] != 0) {
+			_controlSelectedWeapon = 2;
 		}
 	}
 

@@ -50,17 +50,19 @@ void Game::handleBagMenu() {
 			// weapons area
 			if (xPos >= 22 && xPos < getBitmapWidth(_weaponIconImageTable[0]) + 22) {
 				if (yPos >= 22 && yPos < getBitmapHeight(_weaponIconImageTable[0]) + 22) {
-					if (_varsTable[1] == 1 && _varsTable[2] != 0) { // switch to gun
+					if (_varsTable[1] != 0 && _varsTable[2] != 0) { // switch to gun
 						_varsTable[2] = 1;
 						_varsTable[1] = 2;
+						_controlSelectedWeapon = 2;
 					}
 				}
 			}
 			if (xPos >= 22 && xPos < getBitmapWidth(_swordIconImage) + 22) {
 				if (yPos >= 37 && yPos < getBitmapHeight(_swordIconImage) + 37) {
-					if (_varsTable[2] == 1 && _varsTable[1] != 0) { // switch to ?
+					if (_varsTable[2] != 0 && _varsTable[1] != 0) { // switch to sword
 						_varsTable[2] = 2;
 						_varsTable[1] = 1;
+						_controlSelectedWeapon = 1;
 					}
 				}
 			}
@@ -101,17 +103,19 @@ void Game::handleBagMenu() {
 
 		if (_stub->_pi.dirMask & PlayerInput::DIR_DOWN) {
 			_stub->_pi.dirMask &= ~PlayerInput::DIR_DOWN;
-			if (_varsTable[2] == 1 && _varsTable[1] != 0) {
+			if (_varsTable[2] != 0 && _varsTable[1] != 0) {
 				_varsTable[2] = 2;
 				_varsTable[1] = 1;
+				_controlSelectedWeapon = 1;
 			}
 		}
 
 		if (_stub->_pi.dirMask & PlayerInput::DIR_UP) {
 			_stub->_pi.dirMask &= ~PlayerInput::DIR_UP;
-			if (_varsTable[1] == 1 && _varsTable[2] != 0) {
+			if (_varsTable[1] != 0 && _varsTable[2] != 0) {
 				_varsTable[2] = 1;
 				_varsTable[1] = 2;
+				_controlSelectedWeapon = 2;
 			}
 		}
 
@@ -127,12 +131,12 @@ void Game::handleBagMenu() {
 				_bagObjectAreaBlinkCounter = 0;
 			}
 		}
-		if (_varsTable[1] == 1) {
+		if (_controlSelectedWeapon == 1 || (_controlSelectedWeapon == 0 && _varsTable[1] == 1)) {
 			++_bagWeaponAreaBlinkCounter;
 			if (_bagWeaponAreaBlinkCounter >= 10) {
 				_bagWeaponAreaBlinkCounter = 0;
 			}
-		} else if (_varsTable[2] == 1) {
+		} else if (_controlSelectedWeapon == 2 || (_controlSelectedWeapon == 0 && _varsTable[2] == 1)) {
 			++_bagWeaponAreaBlinkCounter;
 			if (_bagWeaponAreaBlinkCounter >= 10) {
 				_bagWeaponAreaBlinkCounter = 0;
@@ -201,9 +205,10 @@ void Game::drawBagMenu(int xPosWnd, int yPosWnd) {
 		drawObject((_isDemo ? 247 : 269) + _currentBagObject * 32, _bagBackgroundImage.h - 32 - getBitmapHeight(p), p, &_bagBackgroundImage);
 	}
 	if (!_isDemo) {
-		uint8_t *weaponImage1 = _varsTable[1] == 1 ? _bagWeaponAreaBlinkImageTable[_bagWeaponAreaBlinkCounter] : _bagWeaponAreaBlinkImageTable[0];
+		const int selectedWeapon = _controlSelectedWeapon != 0 ? _controlSelectedWeapon : (_varsTable[1] == 1 ? 1 : (_varsTable[2] == 1 ? 2 : 0));
+		uint8_t *weaponImage1 = selectedWeapon == 1 ? _bagWeaponAreaBlinkImageTable[_bagWeaponAreaBlinkCounter] : _bagWeaponAreaBlinkImageTable[0];
 		drawObject(87, _bagBackgroundImage.h - 38 - getBitmapHeight(weaponImage1), weaponImage1, &_bagBackgroundImage);
-		uint8_t *weaponImage2 = _varsTable[2] == 1 ? _bagWeaponAreaBlinkImageTable[_bagWeaponAreaBlinkCounter] : _bagWeaponAreaBlinkImageTable[0];
+		uint8_t *weaponImage2 = selectedWeapon == 2 ? _bagWeaponAreaBlinkImageTable[_bagWeaponAreaBlinkCounter] : _bagWeaponAreaBlinkImageTable[0];
 		drawObject(87, _bagBackgroundImage.h - 25 - getBitmapHeight(weaponImage2), weaponImage2, &_bagBackgroundImage);
 	}
 

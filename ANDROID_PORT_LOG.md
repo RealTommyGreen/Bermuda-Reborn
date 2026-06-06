@@ -440,6 +440,36 @@ Erwartung fuer naechsten Device-Test:
 
 ---
 
+## Device-Test-Fix 7: Inventarwechsel Gun/Schwert im Holster speichern (2026-06-06)
+
+Status: **Fix umgesetzt und signierte Release-APK fuer Device-Test installiert. Keine Freigabe fuer APK-Upload auf Drive.**
+
+Ausgangspunkt:
+- Der Wechsel scheiterte bereits im Inventar: von Gewehr auf Schwert wurde nicht gespeichert.
+
+Ursache:
+- `bag.cpp` erlaubte Gun/Schwert-Wechsel nur, wenn die aktuell aktive Waffe den Wert `1` hatte. Im Holster-Zustand ist eine vorhandene Waffe aber nicht zwingend aktiv (`1`), sondern kann als vorhanden/holstered (`2`) vorliegen.
+- Zusaetzlich wurde die neue Auswahl nicht in `_controlSelectedWeapon` gespeichert. Beim Wechsel zurueck ins Spiel konnte die Control-Synchronisierung die Holster-Auswahl deshalb wieder aus alten Engine-Werten ueberschreiben.
+
+Fix:
+- `bag.cpp`: Waffenwechsel prueft jetzt auf vorhandene Waffen (`!= 0`) statt auf aktive gezogene Waffe (`== 1`).
+- Betroffen sind Touch/Maus-Klicks auf Waffenbereich sowie DPAD-Up/Down im Inventar.
+- `bag.cpp`: Inventarwechsel setzt `_controlSelectedWeapon`, und die Inventar-Markierung nutzt diesen Control-Selektionszustand.
+- `game.cpp`: Im Holster-Zustand wird `_controlSelectedWeapon` nicht mehr pro Frame aus `_varsTable[1/2] == 1` ueberschrieben. Diese harte Synchronisierung greift nur noch bei gezogener Waffe.
+
+Lokaler Check:
+- Branch: `Reborn`
+- Build: `android/gradlew.bat :app:assembleDebug` erfolgreich
+- Build: `android/gradlew.bat :app:assembleRelease` erfolgreich
+- Signierte Release-APK per `adb install -r` erfolgreich installiert
+
+Erwartung fuer naechsten Device-Test:
+- Holstered im Inventar von Gewehr auf Schwert wechseln, bestaetigen, Inventar erneut oeffnen: Schwert muss aktiv bleiben.
+- Danach muss Weapon das gewaehlte Schwert ziehen.
+- Wechsel zurueck auf Gewehr muss analog gespeichert bleiben.
+
+---
+
 ## Build (Release APK)
 
 ```powershell

@@ -7,6 +7,7 @@
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
+#include "game.h"
 #include "mixer.h"
 #include "scaler.h"
 #include "screenshot.h"
@@ -24,6 +25,7 @@ enum {
 
 // Set by android_main.cpp after Game::init so menu context detection works.
 extern int *g_gameStatePtr;
+extern Game *g_game;
 
 // Controller action names matching the Android-side ControllerConfig actions.
 enum ControllerAction {
@@ -352,12 +354,10 @@ void SystemStub_SDL::performControlAction(int action, bool pressed) {
 }
 
 int SystemStub_SDL::getControlState() const {
-	int state = 0;
-	if (g_gameStatePtr) {
-		// Phase 2 will populate gun/sword/reload state from Engine.
-		// Phase 1 stub: always return 0.
+	if (g_game) {
+		return g_game->engineControlState();
 	}
-	return state;
+	return 0;
 }
 
 // ---- Controller event handlers ----

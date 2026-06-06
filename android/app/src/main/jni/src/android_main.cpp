@@ -13,7 +13,7 @@
 #define BS_LOGI(...) __android_log_print(ANDROID_LOG_INFO, "BSNative", __VA_ARGS__)
 #define BS_LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "BSNative", __VA_ARGS__)
 
-static Game *g_game = nullptr;
+Game *g_game = nullptr;
 static SystemStub *g_stub = nullptr;
 static uint32_t g_pendingCheatMask = 0;
 static int g_pendingScreenMode = -1;

@@ -113,6 +113,19 @@
 - `TouchInputDispatcher.kt`: `control_action` type handling via `dispatchControlAction()`, `controlActionByName()`, context constants updated to match C++ enum values
 - `TouchButtonPresets.kt`: `control_action` in `actionMatches`
 
+## Phase 14: Engine-Verhalten — Controls.md Phase 2 (2026-06-06)
+
+- Statusleiste default sichtbar: `_lifeBarDisplayed = true` in `restart()`
+- `Game::findJack()` — sucht `SceneObject` mit Namen "Jack" über `_sceneObjectsTable`
+- Weapon-Toggle: `handleWeaponToggle()` toggled Gun/Sword über `_varsTable[2]`/`_varsTable[1]`; Gun ziehen wenn vorhanden, sonst Sword; bewaffnet holstert beide
+- Run/Fire zentral: `runAction` bei unbewaffnet = `_keysPressed[16]` (SHIFT) + Auto-Walk in Jack-Blickrichtung (flip-basiert); bei bewaffnet = `_keysPressed[32]` (SPACE = Attack); D-Pad Left/Right ueberschreibt Auto-Walk-Richtung
+- Jump dediziert: `jumpButtonAction` setzt `_keysPressed[38]` fuer normalen Sprung; DPAD-Up bleibt klassischer Key 38 fuer Kanten/Hochziehen
+- Reload-State-Machine: `handleReloadSequence()` — stehend erst DOWN crouchen (Phase 1), dann DOWN reload (Phase 2); `finishReloadIfComplete()` erkennt Reload-Ende via `_varsTable[3] >= 4` (Ammo voll); crouched bleibt crouched, stehend steht auf
+- `Game::engineControlState()` liefert Bitmask: GUN_DRAWN, SWORD_DRAWN, CAN_RELOAD, RELOAD_BUSY, STATUS_VISIBLE
+- `getControlState()` in `systemstub_sdl.cpp` delegiert an `g_game->engineControlState()`
+- `g_game` in `android_main.cpp` von `static` auf globale Sichtbarkeit geaendert
+- Build: Debug APK sauber (~18 MB)
+
 ---
 
 ---

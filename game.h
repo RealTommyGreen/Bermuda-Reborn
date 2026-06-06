@@ -314,6 +314,15 @@ struct Game {
 		void setCheatMask(uint32_t mask);
 		void setScreenMode(int mode);
 	void setTouchInventoryEnabled(bool enabled);
+	void handleWeaponToggle();
+	bool isJackArmed() const;
+	bool isGunDrawn() const;
+	bool isSwordDrawn() const;
+	SceneObject *findJack();
+	void handleReloadSequence();
+	bool isReloadComplete() const;
+	void finishReloadIfComplete();
+	int engineControlState() const;
 	void mainLoop();
 	void updateMouseButtonsPressed();
 	void updateKeysPressedTable();
@@ -488,6 +497,7 @@ struct Game {
 	int _screenMode;
 	bool _touchInventoryEnabled;
 	int _stateSlot;
+	int _reloadPhase;
 	int _pendingLoadSlot;
 	int _menuSlotMode;
 	int _menuSlotSelection;

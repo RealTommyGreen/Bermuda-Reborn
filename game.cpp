@@ -132,7 +132,8 @@ void Game::restart() {
 	_previousBagAction = _currentBagAction = 0;
 	_previousBagObject = _currentBagObject = -1;
 	_currentPlayingSoundPriority = 0;
-	_lifeBarDisplayed2 = _lifeBarDisplayed = false;
+	_lifeBarDisplayed2 = _lifeBarDisplayed = true;
+	_reloadPhase = 0;
 
 	memset(_keysPressed, 0, sizeof(_keysPressed));
 	_musicTrack = 0;
@@ -210,6 +211,92 @@ void Game::setScreenMode(int mode) {
 
 void Game::setTouchInventoryEnabled(bool enabled) {
 	_touchInventoryEnabled = enabled;
+}
+
+SceneObject *Game::findJack() {
+	for (int i = 0; i < _sceneObjectsCount; ++i) {
+		if (strcmp(_sceneObjectsTable[i].name, "Jack") == 0) {
+			return &_sceneObjectsTable[i];
+		}
+	}
+	return 0;
+}
+
+bool Game::isJackArmed() const {
+	return _varsTable[1] == 1 || _varsTable[2] == 1;
+}
+
+bool Game::isGunDrawn() const {
+	return _varsTable[2] == 1;
+}
+
+bool Game::isSwordDrawn() const {
+	return _varsTable[1] == 1;
+}
+
+void Game::handleWeaponToggle() {
+	if (isJackArmed()) {
+		// holster current weapon
+		_varsTable[1] = 2;
+		_varsTable[2] = 2;
+	} else {
+		// draw gun if available, else sword
+		if (_varsTable[2] >= 1) {
+			_varsTable[2] = 1;
+			_varsTable[1] = 2;
+		} else if (_varsTable[1] >= 1) {
+			_varsTable[1] = 1;
+		}
+	}
+}
+
+void Game::handleReloadSequence() {
+	if (!isGunDrawn()) return;
+	SceneObject *jack = findJack();
+	if (!jack) return;
+	const bool crouched = (_keysPressed[40] != 0);
+	if (!crouched) {
+		_keysPressed[40] = 1; // crouch first
+		_reloadPhase = 1;
+	} else {
+		if (_reloadPhase == 1) {
+			// already crouched, press DOWN for reload
+			_reloadPhase = 2;
+		}
+	}
+}
+
+bool Game::isReloadComplete() const {
+	if (_reloadPhase != 2) return true;
+	SceneObject *jack = const_cast<Game *>(this)->findJack();
+	if (!jack) return true;
+	// Reload done when Jack is no longer in reload/crouch-reload motion
+	// and ammo is full
+	if (_varsTable[3] >= 4) {
+		return true;
+	}
+	return false;
+}
+
+void Game::finishReloadIfComplete() {
+	if (_reloadPhase == 2 && isReloadComplete()) {
+		const bool crouched = (_keysPressed[40] != 0);
+		if (!crouched) {
+			_keysPressed[40] = 0; // stand up
+		}
+		_reloadPhase = 0;
+	}
+}
+
+int Game::engineControlState() const {
+	int state = 0;
+	// CONTROL_STATE_* matching systemstub.h
+	if (isGunDrawn())       state |= 1 << 0; // GUN_DRAWN
+	if (isSwordDrawn())      state |= 1 << 1; // SWORD_DRAWN
+	if (isGunDrawn() && !_reloadPhase) state |= 1 << 2; // CAN_RELOAD
+	if (_reloadPhase)        state |= 1 << 3; // RELOAD_BUSY
+	if (_lifeBarDisplayed)   state |= 1 << 4; // STATUS_VISIBLE
+	return state;
 }
 
 void Game::mainLoop() {
@@ -418,13 +505,66 @@ void Game::updateKeysPressedTable() {
 			_stub->_pi.tab = true;
 		}
 	}
+
+	// -- Weapon toggle --
+	if (_stub->_pi.weaponToggleAction) {
+		_stub->_pi.weaponToggleAction = false;
+		handleWeaponToggle();
+	}
+
+	// -- Run/Fire: semantic runAction maps to SHIFT (run) or SPACE (fire) depending on weapon --
+	const bool armed = isJackArmed();
+	if (_stub->_pi.runAction) {
+		if (armed) {
+			_keysPressed[32] = 1; // SPACE = fire/attack
+			_keysPressed[16] = 0;
+		} else {
+			_keysPressed[16] = 1; // SHIFT = run
+			_keysPressed[32] = 0;
+			// auto-walk in Jack's facing direction if no D-Pad horizontal input
+			if (!(_stub->_pi.dirMask & (PlayerInput::DIR_LEFT | PlayerInput::DIR_RIGHT))) {
+				SceneObject *jack = findJack();
+				if (jack) {
+					if (jack->flip) {
+						_keysPressed[39] = 1; // facing right
+						_keysPressed[37] = 0;
+					} else {
+						_keysPressed[37] = 1; // facing left
+						_keysPressed[39] = 0;
+					}
+				}
+			}
+		}
+	} else {
+		_keysPressed[16] = _stub->_pi.shift ? 1 : 0;
+		_keysPressed[32] = _stub->_pi.space ? 1 : 0;
+	}
+
+	// -- DPAD horizontal: only override auto-walk direction from runAction --
+	if (_stub->_pi.dirMask & (PlayerInput::DIR_LEFT | PlayerInput::DIR_RIGHT)) {
+		_keysPressed[37] = (_stub->_pi.dirMask & PlayerInput::DIR_LEFT)  ? 1 : 0;
+		_keysPressed[39] = (_stub->_pi.dirMask & PlayerInput::DIR_RIGHT) ? 1 : 0;
+	}
+
+	// -- Jump: dedicated jumpButtonAction maps to Key 38 for normal jump, but NOT for ledge hang --
+	if (_stub->_pi.jumpButtonAction) {
+		_keysPressed[38] = 1;
+	} else {
+		_keysPressed[38] = (_stub->_pi.dirMask & PlayerInput::DIR_UP) ? 1 : 0;
+	}
+
+	// -- DOWN: always from dirMask, reload sequence managed by handleReloadSequence --
+	_keysPressed[40] = (_stub->_pi.dirMask & PlayerInput::DIR_DOWN) ? 1 : 0;
+
 	_keysPressed[13] = _stub->_pi.enter ? 1 : 0;
-	_keysPressed[16] = _stub->_pi.shift ? 1 : 0;
-	_keysPressed[32] = _stub->_pi.space ? 1 : 0;
-	_keysPressed[37] = (_stub->_pi.dirMask & PlayerInput::DIR_LEFT)  ? 1 : 0;
-	_keysPressed[38] = (_stub->_pi.dirMask & PlayerInput::DIR_UP)    ? 1 : 0;
-	_keysPressed[39] = (_stub->_pi.dirMask & PlayerInput::DIR_RIGHT) ? 1 : 0;
-	_keysPressed[40] = (_stub->_pi.dirMask & PlayerInput::DIR_DOWN)  ? 1 : 0;
+
+	// -- Reload action --
+	if (_stub->_pi.reloadAction) {
+		_stub->_pi.reloadAction = false;
+		handleReloadSequence();
+	}
+	finishReloadIfComplete();
+
 	if (_keyboardReplayData) {
 		for (uint32_t i = 0; i < sizeof(_keysPressed) && _keyboardReplayOffset < _keyboardReplaySize; ++i) {
 			_keysPressed[i] |= _keyboardReplayData[_keyboardReplayOffset];

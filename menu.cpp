@@ -327,7 +327,6 @@ void Game::drawSlotMenu(bool loadMode) {
 		drawMenuText(_stub, x + 78, y + 28, present ? "USED" : "EMPTY", present || !loadMode ? textColor : dimTextColor);
 	}
 
-	drawMenuText(_stub, 168, 392, "ENTER SELECTS    ESC CANCELS", dimTextColor);
 }
 
 void Game::captureSaveThumbnail() {

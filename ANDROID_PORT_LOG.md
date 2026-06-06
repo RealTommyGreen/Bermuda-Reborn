@@ -1049,3 +1049,12 @@ Fix:
 Lokaler Check:
 - `android/gradlew.bat :app:assembleRelease` erfolgreich
 - Release-APK per `adb install -r` erfolgreich installiert auf `DEVICE_SERIAL`
+
+---
+
+## "ENTER SELECTS ESC CANCELS"-Text aus Savegame-Menue entfernt (2026-06-06)
+
+Status: **Umgesetzt, noch nicht gebaut.**
+
+Fix:
+- `menu.cpp:330`: `drawMenuText(...)` mit "ENTER SELECTS    ESC CANCELS" entfernt. Der Hinweistext war im Touch-Overlay ueberfluessig.

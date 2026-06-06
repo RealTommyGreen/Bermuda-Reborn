@@ -190,12 +190,14 @@ class TouchOverlayController(
             setLocked(cfg.layoutLocked)
             setOnClickListener { onSchlossTapped() }
             isClickable = true; isFocusable = true
+            alpha = 0.35f
         }
         container.addView(schlossButton, bottomStartLayoutParams(0, SYSTEM_BUTTON_SIZE_DP.dpToPx()))
 
         gearButton = TouchOverlaySettingsButtonView(activity).apply {
             setOnClickListener { onGearTapped() }
             isClickable = true; isFocusable = true
+            alpha = 0.35f
             visibility = if (cfg.layoutLocked) View.GONE else View.VISIBLE
         }
         container.addView(gearButton, bottomStartLayoutParams(1, SYSTEM_BUTTON_SIZE_DP.dpToPx()))

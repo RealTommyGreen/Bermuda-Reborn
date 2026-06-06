@@ -1014,3 +1014,20 @@ Device-Verifikation:
 - Repro-Pfad getestet: Start -> Quickload Slot 1 -> ESC/Menu.
 - Logcat: `WARNING: Discarded 1 stale transient MENU object(s)!`
 - Kein `Duplicate object name MENU`, kein `FORTIFY`, kein `Fatal signal` nach dem Fix.
+
+---
+
+## System-Button-Opacity an Default-Preset angeglichen (2026-06-06)
+
+Status: **Umgesetzt, Release-APK per ADB installiert und vom Nutzer bestaetigt.**
+
+Ausgangspunkt:
+- Lock-Button (Schloss) und Settings-Button (Zahnrad) waren voll opak (`alpha = 1.0f`), waehrend die Gameplay-Buttons im Default-Preset mit `alpha = 0.35f` transparent sind.
+- Der Lock-Button blendet das Grid-Raster und den Settings-Button ein; beide System-Buttons sollen optisch zur restlichen Overlay-Transparenz passen.
+
+Fix:
+- `TouchOverlayController.kt`: `schlossButton` und `gearButton` erhalten `alpha = 0.35f` im `apply`-Block.
+
+Lokaler Check:
+- `android/gradlew.bat :app:assembleRelease` erfolgreich
+- Release-APK per `adb install -r` erfolgreich installiert auf `DEVICE_SERIAL`

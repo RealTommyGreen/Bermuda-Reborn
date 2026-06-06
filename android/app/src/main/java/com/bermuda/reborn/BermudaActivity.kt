@@ -37,6 +37,9 @@ class BermudaActivity : SDLActivity() {
         external fun nativePerformControlAction(action: Int, pressed: Boolean)
 
         @JvmStatic
+        external fun nativeSetTouchDirectionMask(dirMask: Int)
+
+        @JvmStatic
         external fun nativeGetControlState(): Int
     }
 

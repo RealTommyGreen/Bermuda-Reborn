@@ -72,31 +72,13 @@ class TouchInputDispatcher {
         }
         heldKeyCodes.clear()
         heldDpadDirection = null
+        setNativeDpadDirection(null)
     }
 
     fun performDpadDirection(direction: String?) {
         if (heldDpadDirection == direction) return
-
-        heldDpadDirection?.let { oldDirection ->
-            val oldCode = keyNameToCode(oldDirection)
-            if (oldCode != null) {
-                SDLActivity.onNativeKeyUp(oldCode)
-                heldKeyCodes.remove(oldCode)
-            }
-        }
-
-        heldDpadDirection = null
-
-        if (direction != null) {
-            val newCode = keyNameToCode(direction)
-            if (newCode != null) {
-                SDLActivity.onNativeKeyDown(newCode)
-                heldKeyCodes.add(newCode)
-                heldDpadDirection = direction
-            } else {
-                Log.w(TAG, "Unknown dpad direction: $direction")
-            }
-        }
+        setNativeDpadDirection(direction)
+        heldDpadDirection = direction
     }
 
     fun performKeyName(keyName: String, pressed: Boolean) {
@@ -281,6 +263,25 @@ class TouchInputDispatcher {
         }
     }
 
+    private fun setNativeDpadDirection(direction: String?) {
+        val mask = when (direction) {
+            "UP" -> DIR_UP
+            "DOWN" -> DIR_DOWN
+            "LEFT" -> DIR_LEFT
+            "RIGHT" -> DIR_RIGHT
+            null -> 0
+            else -> {
+                Log.w(TAG, "Unknown dpad direction: $direction")
+                0
+            }
+        }
+        try {
+            BermudaActivity.nativeSetTouchDirectionMask(mask)
+        } catch (e: UnsatisfiedLinkError) {
+            Log.w(TAG, "nativeSetTouchDirectionMask not available: ${e.message}")
+        }
+    }
+
     private fun dispatchTextAction(action: TouchButtonAction, pressed: Boolean) {
         if (!pressed) return
         val text = action.text ?: return
@@ -306,6 +307,10 @@ class TouchInputDispatcher {
         private const val TOUCH_CONTEXT_VIDEO = 1
         private const val TOUCH_CONTEXT_BITMAP_CONFIRM = 2
         private const val TOUCH_CONTEXT_MENU = 3
+        private const val DIR_UP = 1
+        private const val DIR_DOWN = 2
+        private const val DIR_LEFT = 4
+        private const val DIR_RIGHT = 8
 
         fun toMouseButton(name: String?): Int = when (name?.lowercase()) {
             "right" -> MotionEvent.BUTTON_SECONDARY

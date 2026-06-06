@@ -92,6 +92,12 @@ JNIEXPORT void JNICALL Java_com_bermuda_reborn_BermudaActivity_nativePerformCont
     }
 }
 
+JNIEXPORT void JNICALL Java_com_bermuda_reborn_BermudaActivity_nativeSetTouchDirectionMask(JNIEnv *env, jclass cls, jint dirMask) {
+    if (g_stub) {
+        g_stub->setTouchDirectionMask(static_cast<uint8_t>(dirMask));
+    }
+}
+
 JNIEXPORT jint JNICALL Java_com_bermuda_reborn_BermudaActivity_nativeGetControlState(JNIEnv *env, jclass cls) {
     if (!g_stub) {
         return 0;

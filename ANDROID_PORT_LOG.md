@@ -252,6 +252,35 @@ Wichtig: Keine APK auf Drive hochladen, bis die Device-Tests bestanden sind und 
 
 ---
 
+## Device-Test-Fix 1: Touch-DPAD und Menu-OK (2026-06-06)
+
+Status: **Fix umgesetzt, erneuter Device-Test erforderlich. Keine Freigabe fuer APK-Upload auf Drive.**
+
+Ausgangspunkt:
+- Video-Kontext war korrekt: nur Skip/Cancel-Button mit Cancel-Icon.
+- Menu-Kontext zeigte den Bestaetigen-Button funktional korrekt, aber mit Use-Icon statt OK-Icon.
+- Das vermeintlich frueh verfuegbare Gewehr war ein Testfehler durch aktivierten Alle-Waffen-Cheat und wird nicht als Bug gewertet.
+- Touch-DPAD blieb nach Loslassen/Richtungswechsel haengen und blockierte damit weitere Funktionstests.
+
+Umgesetzte Fixes:
+- `TouchOverlayController.kt`: `btn_use` wird in Menu- und Bitmap-Confirm-Kontexten visuell auf `ok` umgeschaltet und ausserhalb dieser Kontexte wieder auf `use`.
+- `iconmappings.json`: Mapping `ok` -> `BS_OK` ergaenzt.
+- `TouchOverlayButtonView.kt`: DPAD-Bewegung in die Deadzone gibt die vorherige Richtung jetzt sofort frei.
+- `TouchInputDispatcher.kt` / `BermudaActivity.kt` / `android_main.cpp` / `systemstub_sdl.cpp`: Touch-DPAD sendet Richtungen jetzt ueber eine native Richtungsmasken-API statt ueber Android-DPAD-Keyevents. Richtungswechsel und Release setzen damit direkt `PlayerInput::dirMask`.
+
+Lokaler Check:
+- Branch: `Reborn`
+- Build: `android/gradlew.bat :app:assembleDebug` erfolgreich
+- `git diff --check` sauber
+
+Erwartung fuer naechsten Device-Test:
+- Menu-Bestaetigen muss das OK-Icon anzeigen.
+- Ohne gezogene Waffe muessen Run/Jump angezeigt werden; Fire/Reload nur bei wirklich gezogener Gun.
+- DPAD links/rechts/hoch/runter muss beim Loslassen und beim Wechsel in die Deadzone sofort stoppen.
+- Danach koennen die bisher blockierten Tests fuer Run, Jump, Weapon, Reload und Ledge-Verhalten fortgesetzt werden.
+
+---
+
 ## Build (Release APK)
 
 ```powershell

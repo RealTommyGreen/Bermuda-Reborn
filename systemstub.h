@@ -97,6 +97,7 @@ struct SystemStub {
 	virtual void setVideoPlaybackActive(bool active) {}
 	virtual int getTouchInputContext() const { return TOUCH_INPUT_CONTEXT_GAMEPLAY; }
 	virtual void performControlAction(int action, bool pressed) {}
+	virtual void setTouchDirectionMask(uint8_t dirMask) {}
 	virtual int getControlState() const { return 0; }
 
 	virtual void processEvents() = 0;

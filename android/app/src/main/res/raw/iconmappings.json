@@ -3,6 +3,7 @@
   "run": "BS_Run",
   "weapon": "BS_Shoot",
   "use": "BS_Use",
+  "ok": "BS_OK",
   "menu": "BS_Menu",
   "inventory": "BS_Inventory",
   "status": "BS_Status",

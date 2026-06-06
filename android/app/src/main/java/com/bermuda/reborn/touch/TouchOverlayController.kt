@@ -505,6 +505,12 @@ class TouchOverlayController(
             } else if (btnId == "btn_jump" && !gunDrawn) {
                 view.updateConfig(view.config.copy(icon = "jump", actions = listOf(TouchButtonAction(type = "control_action", mode = "hold", button = "jump_button"))))
             }
+
+            if (btnId == "btn_use" && (context == 3 || context == 2)) {
+                view.updateConfig(view.config.copy(icon = "ok"))
+            } else if (btnId == "btn_use" && context != 3 && context != 2) {
+                view.updateConfig(view.config.copy(icon = "use"))
+            }
         }
     }
 

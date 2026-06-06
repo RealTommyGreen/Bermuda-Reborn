@@ -215,7 +215,11 @@ class TouchOverlayButtonView(
     private fun canDispatchInput(): Boolean = !isDraggable
 
     private fun updateDpadDirection(x: Float, y: Float) {
-        val direction = dpadDirection(x, y) ?: return
+        val direction = dpadDirection(x, y)
+        if (direction == null) {
+            if (currentDpadDirection != null) releaseDpadDirection()
+            return
+        }
         if (direction != currentDpadDirection) {
             releaseDpadRun()
             maybeActivateDpadRun(direction)

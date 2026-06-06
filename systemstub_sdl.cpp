@@ -207,6 +207,7 @@ struct SystemStub_SDL : SystemStub {
 	void handleControllerAxis(const SDL_Event &ev);
 	void applyAction(int action, bool pressed);
 	void performControlAction(int action, bool pressed) override;
+	void setTouchDirectionMask(uint8_t dirMask) override;
 	int getControlState() const override;
 	void setFullscreen(bool fullscreen);
 #if SDL_VERSION_ATLEAST(2, 0, 0)
@@ -343,6 +344,11 @@ void SystemStub_SDL::performControlAction(int action, bool pressed) {
 		_pi.reloadAction = pressed;
 		break;
 	}
+}
+
+void SystemStub_SDL::setTouchDirectionMask(uint8_t dirMask) {
+	const uint8_t touchDirections = PlayerInput::DIR_UP | PlayerInput::DIR_DOWN | PlayerInput::DIR_LEFT | PlayerInput::DIR_RIGHT;
+	_pi.dirMask = (_pi.dirMask & ~touchDirections) | (dirMask & touchDirections);
 }
 
 int SystemStub_SDL::getControlState() const {

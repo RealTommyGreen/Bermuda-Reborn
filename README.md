@@ -1,9 +1,16 @@
 # Bermuda Reborn v1.0
 
 Android port of **Bermuda Syndrome** — a cinematic platformer / action-adventure game originally
-developed by Century Interactive (1997). This port runs the original game engine natively on
-Android via SDL2, with a modern touch overlay, game controller support, and an asset-free build
-that loads game data directly from device storage.
+developed by Century Interactive and published by BMG (1995). This port runs a reverse-engineered
+recreation of the game engine natively on Android via SDL2, with a modern touch overlay, game
+controller support, and an asset-free build that loads game data directly from device storage.
+
+## Acknowledgements
+
+This project would not exist without the brilliant work of **Gregory Montoir** ([cyxx](https://github.com/cyxx)),
+who reverse-engineered the entire Bermuda Syndrome engine from the original Windows executable
+and built the cross-platform [cyxx/bermuda](https://github.com/cyxx/bermuda) engine recreation
+(with SDL2, libretro, and Emscripten backends). Merci, Greg — standing on your shoulders here.
 
 ## Features
 
@@ -131,7 +138,7 @@ All buttons are remappable via the controller settings dialog. D-Pad navigates m
 │   │   │   └── res/raw/                         # SVG icons, soundfont
 │   │   └── build.gradle.kts
 │   └── build.gradle.kts
-├── *.cpp, *.h                      # Original Bermuda engine sources
+├── *.cpp, *.h                      # Reverse-engineered Bermuda engine sources
 ├── systemstub_sdl.cpp/h            # SDL2 platform layer
 ├── stb_vorbis.c                    # OGG Vorbis decoder
 └── ANDROID_PORT_LOG.md             # Full development log
@@ -143,7 +150,7 @@ touch input, controller detection, asset import, and JNI bridge to the native en
 
 ## Tech Stack
 
-- **Engine:** C++ (original Bermuda Syndrome, SDL2 2.30)
+- **Engine:** C++ (reverse-engineered Bermuda Syndrome recreation, SDL2 2.30)
 - **Android:** Kotlin, AGP 8.7, minSdk 24, targetSdk 35
 - **Audio:** TinySoundFont + TinyMidiLoader (MIDI), stb_vorbis (OGG fallback)
 - **Graphics:** SDL2 software rendering with YUV video playback
@@ -158,13 +165,13 @@ touch input, controller detection, asset import, and JNI bridge to the native en
 
 ## Credits
 
-- **Original game:** Bermuda Syndrome by Century Interactive (1997)
-- **Engine fork base:** [cyxx/bermuda](https://github.com/cyxx/bermuda)
+- **Original game:** Bermuda Syndrome by Century Interactive, published by BMG (1995)
+- **Engine recreation:** [Gregory Montoir](https://github.com/cyxx) — reverse-engineered from the original Windows executable
 - **Android port:** Tommy Green
 
 ## License
 
-This project is based on the archived [cyxx/bermuda](https://github.com/cyxx/bermuda) engine
-reimplementation. The Android-specific code in `android/` and platform modifications are
+This project is based on the archived [cyxx/bermuda](https://github.com/cyxx/bermuda)
+reverse-engineered engine recreation by Gregory Montoir. The Android-specific code in `android/` and platform modifications are
 provided as-is. The original Bermuda Syndrome game assets are not included and remain the
 property of their respective rights holders.

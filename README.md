@@ -21,6 +21,8 @@ and built the cross-platform [cyxx/bermuda](https://github.com/cyxx/bermuda) eng
 - **Customizable layout** — drag buttons to reposition, long-press to resize, lock to save, import/export presets
 - MIDI music playback via TinySoundFont
 - Native cheats: God Mode, Infinite Ammo, All Weapons
+- **Custom savegame system** — 10 save slots with unique names, savestate preview, and date tracking
+- **Quicksave & Quickload** — instant save/load with a single tap, separate from manual slots
 - 16:9 widescreen (gameplay) with 4:3 menus/inventory/video
 - Landscape, immersive fullscreen
 

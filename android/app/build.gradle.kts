@@ -4,6 +4,18 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+import java.util.Properties
+
+fun getSigningProperty(key: String): String {
+    val props = Properties()
+    val propsFile = rootProject.file("keystore.properties")
+    if (propsFile.exists()) {
+        propsFile.inputStream().use { props.load(it) }
+        return props.getProperty(key)
+    }
+    return ""
+}
+
 android {
     namespace = "com.bermuda.reborn"
     compileSdk = 35
@@ -14,7 +26,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1.7"
+        versionName = "1.0"
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
         }
@@ -30,10 +42,10 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = rootProject.file("bermuda.keystore")
-            storePassword = "REPLACED"
-            keyAlias = "bermuda"
-            keyPassword = "REPLACED"
+            storeFile = getSigningProperty("storeFile").let { if (it.isNotEmpty()) file(it) else null }
+            storePassword = getSigningProperty("storePassword")
+            keyAlias = getSigningProperty("keyAlias")
+            keyPassword = getSigningProperty("keyPassword")
         }
     }
 

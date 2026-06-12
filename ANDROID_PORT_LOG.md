@@ -119,7 +119,7 @@ All following work is defined by `Controls.md` (now deleted — all phases compl
 
 ## Device Test Fixes (June 2026)
 
-All fixes built, signed, ADB-installed to `DEVICE_SERIAL`, and user-verified.
+All fixes built, signed, ADB-installed to a physical test device, and user-verified.
 
 1. **DPAD + Menu OK** — DPAD deadzone releases direction immediately; native direction mask API replaces Android DPAD key events; Menu OK icon shows correctly
 2. **Horizontal stop after DPAD release** — `_keysPressed[37/39]` written every frame from `dirMask`

@@ -16,9 +16,9 @@ and built the cross-platform [cyxx/bermuda](https://github.com/cyxx/bermuda) eng
 
 - Full native engine via SDL2 — no emulation
 - **Asset-free build** (~18 MB APK) — game data loaded via Android Storage Access Framework (SAF)
-- **Touch overlay** with context-sensitive buttons (gameplay, menus, video, inventory)
-- Drag-to-reposition button layout, lockable, with import/export
-- **Game controller support** with remappable buttons
+- **Context-sensitive touch overlay** — gameplay, menus, video, and inventory each get their own button set
+- **Game controller support** — detects gamepads on launch with opt-in prompt and fully remappable buttons
+- **Customizable layout** — drag buttons to reposition, long-press to resize, lock to save, import/export presets
 - MIDI music playback via TinySoundFont
 - Native cheats: God Mode, Infinite Ammo, All Weapons
 - 16:9 widescreen (gameplay) with 4:3 menus/inventory/video

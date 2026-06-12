@@ -1,7 +1,8 @@
-# Bermuda Reborn — Android Port Log
+# Bermuda Reborn v1.0 — Android Port Log
 
 Fork: `cyxx/bermuda` (archived), merge-base: `cf6bdb6` (Dec 2019)
 Branch: `Reborn`
+Release: **BermudaRebornRelease1.0.apk** on Google Drive
 
 ---
 

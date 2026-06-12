@@ -18,5 +18,8 @@ adb-*.log
 bs-*.png
 screen-*.png
 
+# Game assets (loaded via SAF import, not bundled)
+Assets/
+
 # Local signing material
 android/*.keystore

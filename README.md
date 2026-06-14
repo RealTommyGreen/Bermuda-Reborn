@@ -1,4 +1,4 @@
-# Bermuda Reborn v1.0
+# Bermuda Reborn v1.0.1
 
 Android port of **Bermuda Syndrome** — a cinematic platformer / action-adventure game originally
 developed by Century Interactive and published by BMG (1995). This port runs a reverse-engineered
@@ -7,10 +7,9 @@ controller support, and an asset-free build that loads game data directly from d
 
 ## Acknowledgements
 
-This project would not exist without the brilliant work of **Gregory Montoir** ([cyxx](https://github.com/cyxx)),
-who reverse-engineered the entire Bermuda Syndrome engine from the original Windows executable
-and built the cross-platform [cyxx/bermuda](https://github.com/cyxx/bermuda) engine recreation
-(with SDL2, libretro, and Emscripten backends). Merci, Greg — standing on your shoulders here.
+This project is based on the reverse-engineered engine recreation by **Gregory Montoir** ([cyxx](https://github.com/cyxx)),
+who ported the original Bermuda Syndrome engine to SDL2 and other backends in
+[cyxx/bermuda](https://github.com/cyxx/bermuda). Thanks, Greg!
 
 ## Features
 

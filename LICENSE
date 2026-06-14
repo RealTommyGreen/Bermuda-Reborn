@@ -1,22 +1,31 @@
-MIT License
+This project is published for **educational and preservation purposes**.
 
-Copyright (c) 2007-2011 Gregory Montoir — original Bermuda Syndrome engine recreation
-Copyright (c) 2026 Tommy Green — Android port and modifications
+## Engine
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+The core engine code (C++) is a reimplementation of the Bermuda Syndrome engine,
+reverse-engineered by **Gregory Montoir** and published at [github.com/cyxx/bermuda](https://github.com/cyxx/bermuda).
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+The upstream repository has been archived and does not specify a license.
+All engine code remains the work of its original author.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+## Android Port
+
+The Android-specific additions (Kotlin/Java UI, touch overlay, SVG icon system, SAF importer,
+Gradle build system) are provided as-is for educational use. These additions may be freely
+studied, modified, and redistributed for non-commercial preservation purposes.
+
+## Game Data Files
+
+**No Bermuda Syndrome game data files are included in this repository.**
+
+Bermuda Syndrome (1995) is copyrighted by Century Interactive / BMG. You must own
+a licensed copy of the game to use this software.
+
+## Third-Party Components
+
+- [SDL2](https://github.com/libsdl-org/SDL) — zlib license
+- [TinySoundFont](https://github.com/schellingb/TinySoundFont) — MIT license
+- [TinyMidiLoader](https://github.com/schellingb/TinyMidiLoader) — MIT license
+- [AndroidSVG](https://github.com/BigBadaboom/androidsvg) — Apache 2.0
+- [stb_vorbis](https://github.com/nothings/stb) — MIT / Public Domain
+- Soundfont (`TimGM6mb.sf2`) by Tim Brechbill — GPL v2

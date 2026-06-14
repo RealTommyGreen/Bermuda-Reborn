@@ -172,7 +172,10 @@ touch input, controller detection, asset import, and JNI bridge to the native en
 
 ## License
 
-This project is based on the archived [cyxx/bermuda](https://github.com/cyxx/bermuda)
-reverse-engineered engine recreation by Gregory Montoir. The Android-specific code in `android/` and platform modifications are
-provided as-is. The original Bermuda Syndrome game assets are not included and remain the
-property of their respective rights holders.
+This project is licensed under the MIT License — see [LICENSE](LICENSE) for the full text.
+
+- **Engine:** Copyright (c) 2007-2011 Gregory Montoir — reverse-engineered from the original Windows executable
+- **Android port & modifications:** Copyright (c) 2026 Tommy Green
+
+The original Bermuda Syndrome game assets are **not included** in this repository
+and remain the property of their respective rights holders.

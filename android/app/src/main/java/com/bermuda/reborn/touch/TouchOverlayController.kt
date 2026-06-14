@@ -327,10 +327,9 @@ class TouchOverlayController(
 
     private fun isTouchOnAnyButton(x: Float, y: Float): Boolean {
         for (view in buttonViews) {
-            if (x >= view.left.toFloat() && x <= view.right.toFloat() &&
-                y >= view.top.toFloat() && y <= view.bottom.toFloat()) {
-                return true
-            }
+            val localX = x - view.left
+            val localY = y - view.top
+            if (view.isPointInsideShape(localX, localY)) return true
         }
         if (schlossButton != null) {
             val v = schlossButton!!

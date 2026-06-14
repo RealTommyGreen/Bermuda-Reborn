@@ -80,6 +80,7 @@ class TouchOverlayButtonView(
         when (action) {
             MotionEvent.ACTION_DOWN -> {
                 if (activePointerId != -1) return false
+                if (!isDpad && !isPointInsideShape(event.x, event.y)) return false
                 activePointerId = event.getPointerId(0)
                 setPressedState(true)
                 initialTouchTime = System.currentTimeMillis()
@@ -133,7 +134,9 @@ class TouchOverlayButtonView(
             MotionEvent.ACTION_POINTER_DOWN -> {
                 if (activePointerId != -1) return false
                 val index = event.actionIndex
-                activePointerId = event.getPointerId(index)
+                val pi = event.getPointerId(index)
+                if (!isDpad && !isPointInsideShape(event.getX(index), event.getY(index))) return false
+                activePointerId = pi
                 setPressedState(true)
                 initialTouchTime = System.currentTimeMillis()
                 downX = getRawX(event, index); downY = getRawY(event, index)
@@ -309,6 +312,35 @@ class TouchOverlayButtonView(
     }
 
     private fun cornerRadius(factor: Float): Float = minOf(width, height) * factor
+
+    fun isPointInsideShape(localX: Float, localY: Float): Boolean {
+        if (isDpad) return true
+        val bounds = computeOuterShapeBounds()
+        if (localX < bounds.left || localX > bounds.right || localY < bounds.top || localY > bounds.bottom) return false
+        return when (buttonConfig.shape.lowercase()) {
+            BUTTON_SHAPE_CIRCLE -> {
+                val cx = bounds.centerX(); val cy = bounds.centerY()
+                val radius = bounds.width() / 2f
+                val dx = localX - cx; val dy = localY - cy
+                dx * dx + dy * dy <= radius * radius
+            }
+            BUTTON_SHAPE_SQUARE -> isInsideRoundRect(bounds, localX, localY, cornerRadius(0.14f))
+            BUTTON_SHAPE_RECTANGLE -> isInsideRoundRect(bounds, localX, localY, cornerRadius(0.18f))
+            else -> true
+        }
+    }
+
+    private fun isInsideRoundRect(bounds: RectF, localX: Float, localY: Float, cornerR: Float): Boolean {
+        val innerLeft = bounds.left + cornerR
+        val innerRight = bounds.right - cornerR
+        val innerTop = bounds.top + cornerR
+        val innerBottom = bounds.bottom - cornerR
+        if (localX >= innerLeft && localX <= innerRight && localY >= innerTop && localY <= innerBottom) return true
+        val cx = localX.coerceIn(innerLeft, innerRight)
+        val cy = localY.coerceIn(innerTop, innerBottom)
+        val dx = localX - cx; val dy = localY - cy
+        return dx * dx + dy * dy <= cornerR * cornerR
+    }
 
     private fun computeOuterShapeBounds(): RectF {
         val w = width.toFloat(); val h = height.toFloat()

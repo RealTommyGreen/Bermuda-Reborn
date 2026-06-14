@@ -25,6 +25,15 @@ who ported the original Bermuda Syndrome engine to SDL2 and other backends in
 - 16:9 widescreen (gameplay) with 4:3 menus/inventory/video
 - Landscape, immersive fullscreen
 
+## Download
+
+**Latest APK:** [BermudaRebornRelease1.0.1.apk](https://github.com/RealTommyGreen/Bermuda-Reborn/releases/download/v1.0.1/BermudaRebornRelease1.0.1.apk) (19 MB, arm64-v8a + armeabi-v7a + x86_64)
+
+See [CHANGELOG.md](CHANGELOG.md) for version history.
+
+> [!IMPORTANT]
+> This APK does **not** include any game data files. You must provide your own licensed copy of Bermuda Syndrome.
+
 ## Getting the Game Data
 
 This project does **not** include game assets. You need an original copy of Bermuda Syndrome.
@@ -141,8 +150,7 @@ All buttons are remappable via the controller settings dialog. D-Pad navigates m
 │   └── build.gradle.kts
 ├── *.cpp, *.h                      # Reverse-engineered Bermuda engine sources
 ├── systemstub_sdl.cpp/h            # SDL2 platform layer
-├── stb_vorbis.c                    # OGG Vorbis decoder
-└── ANDROID_PORT_LOG.md             # Full development log
+└── stb_vorbis.c                    # OGG Vorbis decoder
 ```
 
 The engine compiles into a single native library `libbs.so` loaded by SDL2.

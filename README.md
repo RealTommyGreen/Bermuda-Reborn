@@ -111,7 +111,7 @@ Layout changes persist. The lock button saves your layout and hides the editor.
 ### Settings
 
 Tap the gear icon for:
-- Global D-Pad double-tap to run
+- Global D-Pad double-tap to run; double-tap D-Pad Up or the Jump button for a standing forward jump
 - Cheats (God Mode, Infinite Ammo, All Weapons)
 - Screen mode (4:3 / 16:9 stretched)
 - Reset layout to defaults

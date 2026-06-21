@@ -59,14 +59,34 @@ class TouchOverlayButtonView(
     private var currentDpadDirection: String? = null
     private var lastHorizontalDpadTapDirection: String? = null
     private var lastHorizontalDpadTapTime = 0L
+    private var lastDpadUpTapTime = 0L
+    private var pendingDpadUpRunnable: Runnable? = null
+    private var dpadTouchActive = false
+    private var dpadUpDispatchActive = false
     private var dpadRunActive = false
+    private var dpadForwardJumpActive = false
+    private var lastJumpButtonTapTime = 0L
+    private var pendingJumpButtonRunnable: Runnable? = null
+    private var jumpButtonTouchActive = false
+    private var jumpButtonNormalActive = false
+    private var jumpButtonForwardJumpActive = false
     private var snapGridSizePx: Int = 0
     var globalDpadDoubleTapRunEnabled: Boolean = true
 
     init { updateHoldMode() }
 
     fun updateConfig(newConfig: TouchButtonConfig) {
-        buttonConfig = newConfig; updateHoldMode(); invalidate()
+        buttonConfig = newConfig
+        updateHoldMode()
+        if (!isGameplayJumpButton()) {
+            cancelPendingJumpButton()
+            releaseJumpForwardJump()
+            if (jumpButtonNormalActive) {
+                dispatchActions(false)
+                jumpButtonNormalActive = false
+            }
+        }
+        invalidate()
     }
 
     private fun updateHoldMode() {
@@ -87,8 +107,8 @@ class TouchOverlayButtonView(
                 downX = getRawX(event, 0); downY = getRawY(event, 0)
                 viewStartLeft = left; viewStartTop = top
                 hasMovedPastThreshold = false; isDragging = false; isLongPress = false
-                if (canDispatchInput() && isDpad && isHoldMode) updateDpadDirection(event.x, event.y)
-                else if (canDispatchInput() && isHoldMode) dispatchActions(true)
+                if (canDispatchInput() && isDpad && isHoldMode) { dpadTouchActive = true; updateDpadDirection(event.x, event.y) }
+                else if (canDispatchInput() && isHoldMode) handleHoldButtonDown()
                 else if (canDispatchInput()) dispatchActions(true)
                 onInteraction?.invoke()
                 return true
@@ -104,7 +124,7 @@ class TouchOverlayButtonView(
                     if (System.currentTimeMillis() - initialTouchTime > LONG_PRESS_MS) isLongPress = true
                     if (hasMovedPastThreshold && isDraggable) {
                         isDragging = true
-                        if (canDispatchInput() && isHoldMode) { dispatchActions(false); setPressedState(false) }
+                        if (canDispatchInput() && isHoldMode) { handleHoldButtonUp(); setPressedState(false) }
                     }
                 }
                 if (isDragging) {
@@ -122,8 +142,8 @@ class TouchOverlayButtonView(
                 when {
                     isDragging -> { setPressedState(false); notifyPositionChanged() }
                     isLongPress && !hasMovedPastThreshold && isDraggable -> { setPressedState(false); longPressCallback(config) }
-                    canDispatchInput() && isDpad && isHoldMode -> { releaseDpadDirection(); setPressedState(false) }
-                    canDispatchInput() && isHoldMode -> { dispatchActions(false); setPressedState(false) }
+                    canDispatchInput() && isDpad && isHoldMode -> { dpadTouchActive = false; releaseDpadDirection(keepPendingUp = pendingDpadUpRunnable != null && currentDpadDirection == "UP"); setPressedState(false) }
+                    canDispatchInput() && isHoldMode -> { handleHoldButtonUp(); setPressedState(false) }
                     canDispatchInput() -> { releaseTapActionsDelayed(); setPressedState(false) }
                     else -> setPressedState(false)
                 }
@@ -142,8 +162,8 @@ class TouchOverlayButtonView(
                 downX = getRawX(event, index); downY = getRawY(event, index)
                 viewStartLeft = left; viewStartTop = top
                 hasMovedPastThreshold = false; isDragging = false; isLongPress = false
-                if (canDispatchInput() && isDpad && isHoldMode) updateDpadDirection(event.getX(index), event.getY(index))
-                else if (canDispatchInput() && isHoldMode) dispatchActions(true)
+                if (canDispatchInput() && isDpad && isHoldMode) { dpadTouchActive = true; updateDpadDirection(event.getX(index), event.getY(index)) }
+                else if (canDispatchInput() && isHoldMode) handleHoldButtonDown()
                 else if (canDispatchInput()) dispatchActions(true)
                 return true
             }
@@ -152,8 +172,8 @@ class TouchOverlayButtonView(
                 if (event.getPointerId(pointerIndex) == activePointerId) {
                     if (isDragging) { setPressedState(false); notifyPositionChanged() }
                     else if (isLongPress && !hasMovedPastThreshold && isDraggable) longPressCallback(config)
-                    else if (canDispatchInput() && isDpad && isHoldMode) releaseDpadDirection()
-                    else if (canDispatchInput() && isHoldMode) dispatchActions(false)
+                    else if (canDispatchInput() && isDpad && isHoldMode) { dpadTouchActive = false; releaseDpadDirection(keepPendingUp = pendingDpadUpRunnable != null && currentDpadDirection == "UP") }
+                    else if (canDispatchInput() && isHoldMode) handleHoldButtonUp()
                     else if (canDispatchInput()) releaseTapActionsDelayed()
                     setPressedState(false); activePointerId = -1
                     isDragging = false; isLongPress = false
@@ -163,8 +183,8 @@ class TouchOverlayButtonView(
             MotionEvent.ACTION_CANCEL -> {
                 if (activePointerId != -1) {
                     if (isDragging) notifyPositionChanged()
-                    else if (canDispatchInput() && isDpad && isHoldMode) releaseDpadDirection()
-                    else if (canDispatchInput() && isHoldMode) dispatchActions(false)
+                    else if (canDispatchInput() && isDpad && isHoldMode) { dpadTouchActive = false; releaseDpadDirection(keepPendingUp = false) }
+                    else if (canDispatchInput() && isHoldMode) handleHoldButtonUp(cancelPending = true)
                     else if (canDispatchInput()) dispatchActions(false)
                 }
                 setPressedState(false); activePointerId = -1
@@ -188,8 +208,8 @@ class TouchOverlayButtonView(
     }
 
     fun releaseIfHeld() {
-        if (isPressed && isDpad && isHoldMode && !isDragging) { releaseDpadDirection(); setPressedState(false); activePointerId = -1 }
-        else if (isPressed && isHoldMode && !isDragging) { dispatchActions(false); setPressedState(false); activePointerId = -1 }
+        if (isPressed && isDpad && isHoldMode && !isDragging) { dpadTouchActive = false; releaseDpadDirection(keepPendingUp = false); setPressedState(false); activePointerId = -1 }
+        else if (isPressed && isHoldMode && !isDragging) { handleHoldButtonUp(cancelPending = true); setPressedState(false); activePointerId = -1 }
         else if (isPressed) { setPressedState(false); activePointerId = -1 }
     }
 
@@ -220,23 +240,40 @@ class TouchOverlayButtonView(
 
     private fun canDispatchInput(): Boolean = !isDraggable
 
+    private fun handleHoldButtonDown() {
+        if (isGameplayJumpButton()) handleJumpButtonDown()
+        else dispatchActions(true)
+    }
+
+    private fun handleHoldButtonUp(cancelPending: Boolean = false) {
+        if (isGameplayJumpButton()) handleJumpButtonUp(cancelPending)
+        else dispatchActions(false)
+    }
+
     private fun updateDpadDirection(x: Float, y: Float) {
         val direction = dpadDirection(x, y)
         if (direction == null) {
-            if (currentDpadDirection != null) releaseDpadDirection()
+            if (currentDpadDirection != null) releaseDpadDirection(keepPendingUp = pendingDpadUpRunnable != null && currentDpadDirection == "UP")
             return
         }
         if (direction != currentDpadDirection) {
-            releaseDpadRun()
-            maybeActivateDpadRun(direction)
-            dispatcher.performDpadDirection(direction)
+            releaseDpadDirection(keepPendingUp = direction == "UP" && pendingDpadUpRunnable != null && currentDpadDirection == null)
+            if (direction == "UP") {
+                handleDpadUpDown()
+            } else {
+                maybeActivateDpadRun(direction)
+                dispatcher.performDpadDirection(direction)
+            }
             currentDpadDirection = direction
         }
     }
 
-    private fun releaseDpadDirection() {
+    private fun releaseDpadDirection(keepPendingUp: Boolean = false) {
         releaseDpadRun()
+        releaseDpadForwardJump()
+        if (!keepPendingUp) cancelPendingDpadUp()
         dispatcher.performDpadDirection(null)
+        dpadUpDispatchActive = false
         currentDpadDirection = null
     }
 
@@ -267,6 +304,109 @@ class TouchOverlayButtonView(
             dpadRunActive = false
         }
     }
+
+    private fun handleDpadUpDown() {
+        val now = System.currentTimeMillis()
+        if (pendingDpadUpRunnable != null && now - lastDpadUpTapTime <= FORWARD_JUMP_DOUBLE_TAP_MS) {
+            cancelPendingDpadUp()
+            dispatcher.performForwardJump(true)
+            dpadForwardJumpActive = true
+        } else {
+            lastDpadUpTapTime = now
+            schedulePendingDpadUp()
+        }
+    }
+
+    private fun releaseDpadForwardJump() {
+        if (dpadForwardJumpActive) {
+            dispatcher.performForwardJump(false)
+            dpadForwardJumpActive = false
+        }
+    }
+
+    private fun schedulePendingDpadUp() {
+        cancelPendingDpadUp()
+        val pending = Runnable {
+            pendingDpadUpRunnable = null
+            if (dpadForwardJumpActive) return@Runnable
+            dispatcher.performDpadDirection("UP")
+            dpadUpDispatchActive = true
+            if (!dpadTouchActive || currentDpadDirection != "UP") {
+                postDelayed({
+                    if (dpadUpDispatchActive && currentDpadDirection != "UP") {
+                        dispatcher.performDpadDirection(null)
+                        dpadUpDispatchActive = false
+                    }
+                }, TAP_RELEASE_DELAY_MS)
+            }
+        }
+        pendingDpadUpRunnable = pending
+        postDelayed(pending, FORWARD_JUMP_DOUBLE_TAP_MS)
+    }
+
+    private fun cancelPendingDpadUp() {
+        pendingDpadUpRunnable?.let { removeCallbacks(it) }
+        pendingDpadUpRunnable = null
+    }
+
+    private fun handleJumpButtonDown() {
+        jumpButtonTouchActive = true
+        val now = System.currentTimeMillis()
+        if (pendingJumpButtonRunnable != null && now - lastJumpButtonTapTime <= FORWARD_JUMP_DOUBLE_TAP_MS) {
+            cancelPendingJumpButton()
+            dispatcher.performForwardJump(true)
+            jumpButtonForwardJumpActive = true
+        } else {
+            lastJumpButtonTapTime = now
+            schedulePendingJumpButton()
+        }
+    }
+
+    private fun handleJumpButtonUp(cancelPending: Boolean) {
+        jumpButtonTouchActive = false
+        if (cancelPending) cancelPendingJumpButton()
+        if (jumpButtonForwardJumpActive) {
+            releaseJumpForwardJump()
+        } else if (jumpButtonNormalActive) {
+            dispatchActions(false)
+            jumpButtonNormalActive = false
+        }
+    }
+
+    private fun releaseJumpForwardJump() {
+        if (jumpButtonForwardJumpActive) {
+            dispatcher.performForwardJump(false)
+            jumpButtonForwardJumpActive = false
+        }
+    }
+
+    private fun schedulePendingJumpButton() {
+        cancelPendingJumpButton()
+        val pending = Runnable {
+            pendingJumpButtonRunnable = null
+            if (jumpButtonForwardJumpActive) return@Runnable
+            dispatchActions(true)
+            if (jumpButtonTouchActive) {
+                jumpButtonNormalActive = true
+            } else {
+                postDelayed({
+                    dispatchActions(false)
+                    jumpButtonNormalActive = false
+                }, TAP_RELEASE_DELAY_MS)
+            }
+        }
+        pendingJumpButtonRunnable = pending
+        postDelayed(pending, FORWARD_JUMP_DOUBLE_TAP_MS)
+    }
+
+    private fun cancelPendingJumpButton() {
+        pendingJumpButtonRunnable?.let { removeCallbacks(it) }
+        pendingJumpButtonRunnable = null
+    }
+
+    private fun isGameplayJumpButton(): Boolean =
+        buttonConfig.id == "btn_jump" &&
+            buttonConfig.actions.any { it.type == "control_action" && it.mode == "hold" && it.button == "jump_button" }
 
     private fun moveWithinParent(requestedLeft: Int, requestedTop: Int) {
         val parentView = parent as? View
@@ -622,6 +762,7 @@ class TouchOverlayButtonView(
         private const val LONG_PRESS_MS = 400L
         private const val TAP_RELEASE_DELAY_MS = 120L
         private const val DPAD_DOUBLE_TAP_RUN_MS = 280L
+        private const val FORWARD_JUMP_DOUBLE_TAP_MS = 280L
         private const val TOUCH_SLOP = 16.0
     }
 }

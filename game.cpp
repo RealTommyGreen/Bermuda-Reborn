@@ -631,7 +631,12 @@ void Game::updateKeysPressedTable() {
 
 	// -- Run/Fire: semantic runAction maps to SHIFT (run) or SPACE (fire) depending on weapon --
 	const bool armed = isJackArmed();
-	if (_stub->_pi.runAction) {
+	const bool jackHangingOnLedge = isJackHangingOnLedge();
+	const bool forwardJump = _stub->_pi.forwardJumpAction && !armed && !jackHangingOnLedge;
+	if (forwardJump) {
+		_keysPressed[16] = 1; // SHIFT + UP = original standing forward jump
+		_keysPressed[32] = 0;
+	} else if (_stub->_pi.runAction) {
 		if (armed) {
 			_keysPressed[32] = 1; // SPACE = fire/attack
 			_keysPressed[16] = 0;
@@ -661,7 +666,7 @@ void Game::updateKeysPressedTable() {
 	// -- DPAD horizontal: write every frame so released touch directions clear movement.
 	// Run auto-walk owns left/right only while runAction is held without a D-Pad override.
 	const bool dpadHorizontal = (_stub->_pi.dirMask & (PlayerInput::DIR_LEFT | PlayerInput::DIR_RIGHT)) != 0;
-	if (!(_stub->_pi.runAction && !armed && !dpadHorizontal)) {
+	if (!(_stub->_pi.runAction && !armed && !forwardJump && !dpadHorizontal)) {
 		_keysPressed[37] = (_stub->_pi.dirMask & PlayerInput::DIR_LEFT)  ? 1 : 0;
 		_keysPressed[39] = (_stub->_pi.dirMask & PlayerInput::DIR_RIGHT) ? 1 : 0;
 	}
@@ -669,8 +674,8 @@ void Game::updateKeysPressedTable() {
 	// -- Jump: DPAD-Up always maps to Key 38 for ledge climb-up.
 	// Dedicated jump is suppressed only while hanging so it does not auto-climb.
 	const bool dpadUp = (_stub->_pi.dirMask & PlayerInput::DIR_UP) != 0;
-	const bool dedicatedJump = _stub->_pi.jumpButtonAction && !isJackHangingOnLedge();
-	_keysPressed[38] = (dpadUp || dedicatedJump) ? 1 : 0;
+	const bool dedicatedJump = _stub->_pi.jumpButtonAction && !jackHangingOnLedge;
+	_keysPressed[38] = (forwardJump || dpadUp || dedicatedJump) ? 1 : 0;
 
 	// -- DOWN: from dirMask unless reload is actively holding DOWN.
 	if (_reloadPhase != 1) {

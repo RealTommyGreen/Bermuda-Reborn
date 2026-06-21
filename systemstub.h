@@ -16,7 +16,8 @@ enum {
 	CONTROL_ACTION_WEAPON_TOGGLE = 2,
 	CONTROL_ACTION_USE = 3,
 	CONTROL_ACTION_MENU_BACK = 4,
-	CONTROL_ACTION_RELOAD = 5
+	CONTROL_ACTION_RELOAD = 5,
+	CONTROL_ACTION_FORWARD_JUMP = 6
 };
 
 enum {
@@ -52,6 +53,7 @@ struct PlayerInput {
 	bool jumpButtonAction;
 	bool weaponToggleAction;
 	bool reloadAction;
+	bool forwardJumpAction;
 };
 
 enum {

@@ -347,6 +347,9 @@ void SystemStub_SDL::performControlAction(int action, bool pressed) {
 	case CONTROL_ACTION_RELOAD:
 		_pi.reloadAction = pressed;
 		break;
+	case CONTROL_ACTION_FORWARD_JUMP:
+		_pi.forwardJumpAction = pressed;
+		break;
 	}
 }
 

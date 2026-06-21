@@ -13,6 +13,7 @@ class TouchInputDispatcher {
     private val heldComboKeys = mutableMapOf<String, MutableList<Int>>()
     private val heldContextualButtonKeys = mutableMapOf<String, Int>()
     private var heldDpadDirection: String? = null
+    private var heldForwardJump = false
 
     fun performAction(action: TouchButtonAction, pressed: Boolean) {
         performButtonAction(null, action, pressed)
@@ -73,6 +74,7 @@ class TouchInputDispatcher {
         heldKeyCodes.clear()
         heldDpadDirection = null
         setNativeDpadDirection(null)
+        performForwardJump(false)
     }
 
     fun performDpadDirection(direction: String?) {
@@ -87,6 +89,16 @@ class TouchInputDispatcher {
             return
         }
         performRawKeyCode(keyCode, pressed)
+    }
+
+    fun performForwardJump(pressed: Boolean) {
+        if (heldForwardJump == pressed) return
+        heldForwardJump = pressed
+        try {
+            BermudaActivity.nativePerformControlAction(CONTROL_ACTION_FORWARD_JUMP, pressed)
+        } catch (e: UnsatisfiedLinkError) {
+            Log.w(TAG, "nativePerformControlAction not available: ${e.message}")
+        }
     }
 
     private fun performRawKeyCode(keyCode: Int, pressed: Boolean) {
@@ -316,6 +328,7 @@ class TouchInputDispatcher {
         private const val DIR_DOWN = 2
         private const val DIR_LEFT = 4
         private const val DIR_RIGHT = 8
+        private const val CONTROL_ACTION_FORWARD_JUMP = 6
 
         fun toMouseButton(name: String?): Int = when (name?.lowercase()) {
             "right" -> MotionEvent.BUTTON_SECONDARY
@@ -376,6 +389,7 @@ class TouchInputDispatcher {
             "use" -> 3       // CONTROL_ACTION_USE
             "menu_back" -> 4  // CONTROL_ACTION_MENU_BACK
             "reload" -> 5    // CONTROL_ACTION_RELOAD
+            "forward_jump" -> CONTROL_ACTION_FORWARD_JUMP
             else -> null
         }
 

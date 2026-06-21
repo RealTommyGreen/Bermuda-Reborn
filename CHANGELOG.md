@@ -2,6 +2,11 @@
 
 All notable changes to Bermuda Reborn are documented here.
 
+## [1.0.3] — 2026-06-22
+
+### Fixed
+- Reset transient weapon and touch-control state after loading savegames, preventing the touch overlay from staying in weapon mode after death and restore
+
 ## [1.0.1] — 2026-06-14
 
 ### Fixed

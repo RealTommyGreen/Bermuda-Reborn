@@ -304,5 +304,14 @@ void Game::loadState(File *f, int slot, bool switchScene) {
 	}
 	_musicTrack = loadInt32();
 	saveOrLoadStr(_musicName);
+	_controlGunDrawn = false;
+	_controlSwordDrawn = false;
+	_controlSelectedWeapon = 0;
+	_weaponToggleBusyFrames = 0;
+	_pendingWeaponToggle = false;
+	_weaponToggleDrawRequested = false;
+	_reloadPhase = 0;
+	_reloadFrameCounter = 0;
+	_reloadWasCrouched = false;
 	debug(DBG_INFO, "Loaded state from slot %d scene '%s'", slot, _tempTextBuffer);
 }

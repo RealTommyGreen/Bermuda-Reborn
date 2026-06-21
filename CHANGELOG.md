@@ -6,6 +6,7 @@ All notable changes to Bermuda Reborn are documented here.
 
 ### Fixed
 - Reset transient weapon and touch-control state after loading savegames, preventing the touch overlay from staying in weapon mode after death and restore
+- Preserve held aim direction after firing with a drawn weapon, so Jack no longer snaps back to straight-ahead aiming
 
 ## [1.0.1] — 2026-06-14
 

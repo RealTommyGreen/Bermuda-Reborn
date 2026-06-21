@@ -910,7 +910,16 @@ void Game::runObjectsScript() {
 	_objectScript.nextScene = -1;
 	assert(_loadDataState != 3); // unneeded code
 	if (_varsTable[309]) {
+		const uint8_t keyLeft = _keysPressed[37];
+		const uint8_t keyUp = _keysPressed[38];
+		const uint8_t keyRight = _keysPressed[39];
+		const uint8_t keyDown = _keysPressed[40];
 		memset(_keysPressed, 0, sizeof(_keysPressed));
+		// Keep held directions while consuming one-shot action keys.
+		_keysPressed[37] = keyLeft;
+		_keysPressed[38] = keyUp;
+		_keysPressed[39] = keyRight;
+		_keysPressed[40] = keyDown;
 	}
 	if (_loadDataState == 2) {
 		int start = _workaroundRaftFlySceneBug ? 1 : 0;

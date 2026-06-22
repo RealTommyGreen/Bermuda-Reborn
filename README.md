@@ -1,4 +1,4 @@
-# Bermuda Reborn v1.0.1
+# Bermuda Reborn v1.0.4
 
 Android port of **Bermuda Syndrome** — a cinematic platformer / action-adventure game originally
 developed by Century Interactive and published by BMG (1995). This port runs a reverse-engineered
@@ -27,7 +27,7 @@ who ported the original Bermuda Syndrome engine to SDL2 and other backends in
 
 ## Download
 
-**Latest APK:** [BermudaRebornRelease1.0.1.apk](https://github.com/RealTommyGreen/Bermuda-Reborn/releases/download/v1.0.1/BermudaRebornRelease1.0.1.apk) (19 MB, arm64-v8a + armeabi-v7a + x86_64)
+**Latest APK:** [BermudaRebornRelease1.0.4.apk](https://github.com/RealTommyGreen/Bermuda-Reborn/releases/download/v1.0.4/BermudaRebornRelease1.0.4.apk) (19 MB, arm64-v8a + armeabi-v7a + x86_64)
 
 See [CHANGELOG.md](CHANGELOG.md) for version history.
 

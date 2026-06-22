@@ -2,6 +2,12 @@
 
 All notable changes to Bermuda Reborn are documented here.
 
+## [1.0.4] - 2026-06-22
+
+### Added
+- Add first-run savegame folder selection on Android and sync native save slots with the chosen folder
+- Write Java/Kotlin and native crash logs into the selected savegame folder
+
 ## [1.0.3] — 2026-06-22
 
 ### Fixed

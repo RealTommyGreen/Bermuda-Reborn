@@ -76,6 +76,7 @@ target_compile_options(bs PRIVATE
 
 target_link_libraries(bs
     SDL2-static
+    android
     z
     log
 )

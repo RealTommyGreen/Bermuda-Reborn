@@ -2,6 +2,9 @@ package com.bermuda.reborn
 
 import android.app.Activity
 import android.content.Intent
+import android.os.FileObserver
+import android.os.Handler
+import android.os.Looper
 import android.os.Bundle
 import android.util.Log
 import android.view.ViewGroup
@@ -21,6 +24,7 @@ class BermudaActivity : SDLActivity() {
         private const val TOUCH_OVERLAY_ENABLED = true
         private const val REQUEST_CODE_IMPORT_TOUCH_PRESET = 1101
         private const val REQUEST_CODE_EXPORT_TOUCH_PRESET = 1102
+        private const val SAVE_SYNC_DELAY_MS = 500L
 
         @JvmStatic
         external fun nativeSetCheat(cheatId: Int, enabled: Boolean)
@@ -49,6 +53,10 @@ class BermudaActivity : SDLActivity() {
 
     private var touchOverlayController: TouchOverlayController? = null
     private var controllerEnabled: Boolean = false
+    private var saveDirectoryManager: SaveDirectoryManager? = null
+    private var saveObserver: FileObserver? = null
+    private val saveSyncHandler = Handler(Looper.getMainLooper())
+    private val saveSyncRunnable = Runnable { flushSaveDirectory() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,6 +72,7 @@ class BermudaActivity : SDLActivity() {
         Log.i(TAG, "Controller config loaded, mapping: $mappingJson, dpadRun=${touchConfig.dpadDoubleTapRunEnabled}")
         nativeSetControllerConfig(controllerEnabled, mappingJson, touchConfig.dpadDoubleTapRunEnabled)
         nativeSetTouchInventoryEnabled(touchConfig.touchInventoryEnabled)
+        startSaveDirectorySync()
 
         if (!TOUCH_OVERLAY_ENABLED) {
             Log.i(TAG, "Touch overlay disabled for startup crash isolation")
@@ -81,12 +90,17 @@ class BermudaActivity : SDLActivity() {
 
     override fun onPause() {
         touchOverlayController?.releasePressedInputs()
+        flushSaveDirectory()
         super.onPause()
     }
 
     override fun onDestroy() {
         touchOverlayController?.detach()
         touchOverlayController = null
+        saveSyncHandler.removeCallbacks(saveSyncRunnable)
+        flushSaveDirectory()
+        saveObserver?.stopWatching()
+        saveObserver = null
         super.onDestroy()
     }
 
@@ -123,10 +137,15 @@ class BermudaActivity : SDLActivity() {
 
     override fun getArguments(): Array<String> {
         val importedDir = File(filesDir, SafImporter.IMPORT_DIR).resolve(SafImporter.BERMUDA_DIR)
-        val savePath = File(filesDir, "saves")
+        val saveManager = SaveDirectoryManager(this)
+        val savePath = saveManager.getCacheDir()
         val musicPath = importedDir.resolve("MIDI")
 
         savePath.mkdirs()
+        val importedSaves = saveManager.syncSelectedToCache()
+        if (importedSaves != 0) {
+            Log.i(TAG, "Imported $importedSaves save file(s) before native startup")
+        }
 
         // Copy bundled SoundFont from assets to internal storage
         val sfDir = File(filesDir, "soundfont")
@@ -156,8 +175,50 @@ class BermudaActivity : SDLActivity() {
             "--datapath=${importedDir.absolutePath}",
             "--savepath=${savePath.absolutePath}",
             "--musicpath=${musicPath.absolutePath}",
+            "--appversion=${AppInfo.versionString(this)}",
             "--fullscreen",
             "--widescreen=default"
         ) + (if (soundfontArg.isNotEmpty()) arrayOf(soundfontArg) else emptyArray())
+    }
+
+    private fun startSaveDirectorySync() {
+        val manager = SaveDirectoryManager(this)
+        saveDirectoryManager = manager
+        if (!manager.isConfigured()) {
+            Log.i(TAG, "Save directory sync disabled; no configured savegame folder")
+            return
+        }
+
+        val saveDir = manager.getCacheDir()
+        saveDir.mkdirs()
+
+        saveObserver?.stopWatching()
+        saveObserver = object : FileObserver(
+            saveDir.absolutePath,
+            FileObserver.CLOSE_WRITE or
+                FileObserver.CREATE or
+                FileObserver.MOVED_TO or
+                FileObserver.MODIFY
+        ) {
+            override fun onEvent(event: Int, path: String?) {
+                if (path == null || !SaveDirectoryManager.isExportFileName(path)) return
+                scheduleSaveDirectoryExport()
+            }
+        }
+        saveObserver?.startWatching()
+        Log.i(TAG, "Save directory sync watching ${saveDir.absolutePath}")
+    }
+
+    private fun scheduleSaveDirectoryExport() {
+        saveSyncHandler.removeCallbacks(saveSyncRunnable)
+        saveSyncHandler.postDelayed(saveSyncRunnable, SAVE_SYNC_DELAY_MS)
+    }
+
+    private fun flushSaveDirectory() {
+        val manager = saveDirectoryManager ?: SaveDirectoryManager(this).also {
+            saveDirectoryManager = it
+        }
+        if (!manager.isConfigured()) return
+        manager.exportCacheToSelected()
     }
 }

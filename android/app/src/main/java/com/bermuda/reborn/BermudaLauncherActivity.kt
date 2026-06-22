@@ -22,6 +22,7 @@ class BermudaLauncherActivity : Activity() {
     companion object {
         private const val TAG = "BSLauncher"
         private const val REQUEST_IMPORT = 1001
+        private const val REQUEST_SAVE_DIR = 1002
     }
 
     private var progressBar: ProgressBar? = null
@@ -42,13 +43,19 @@ class BermudaLauncherActivity : Activity() {
 
         val importer = SafImporter(this)
 
-        if (importer.isImportValid()) {
-            Log.i(TAG, "Import valid, checking for controller")
-            checkControllerAndStart()
+        if (!importer.isImportValid()) {
+            createImportUI()
             return
         }
 
-        createImportUI()
+        if (!SaveDirectoryManager(this).isConfigured()) {
+            Log.i(TAG, "Import valid, save directory missing")
+            createSaveDirectoryUI()
+            return
+        }
+
+        Log.i(TAG, "Import and save directory valid, checking for controller")
+        checkControllerAndStart()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -68,6 +75,29 @@ class BermudaLauncherActivity : Activity() {
     }
 
     private fun createImportUI() {
+        createWizardUI(
+            titleText = "Bermuda Reborn",
+            subtitleText = "To play, select your Bermuda Reborn game folder.\nThis only needs to be done once.\nThe folder must contain BERMUDA.SPR, BERMUDA.WGP,\nSCN/-01.SCN, and MIDI/TITLE.MID.",
+            buttonText = "Select Game Folder",
+            onButtonClick = { startGameFolderPicker() }
+        )
+    }
+
+    private fun createSaveDirectoryUI() {
+        createWizardUI(
+            titleText = "Savegame Folder",
+            subtitleText = "Choose the folder where Bermuda Reborn should store and load savegames.\nUse an empty folder or an existing Bermuda Reborn savegame folder.",
+            buttonText = "Select Savegame Folder",
+            onButtonClick = { startSaveDirectoryPicker() }
+        )
+    }
+
+    private fun createWizardUI(
+        titleText: String,
+        subtitleText: String,
+        buttonText: String,
+        onButtonClick: () -> Unit
+    ) {
         val root = FrameLayout(this)
 
         val background = ImageView(this).apply {
@@ -94,7 +124,7 @@ class BermudaLauncherActivity : Activity() {
         }
 
         val title = TextView(this).apply {
-            text = "Bermuda Reborn"
+            text = titleText
             textSize = 28f
             setTextColor(0xFFFFFFFF.toInt())
             gravity = Gravity.CENTER
@@ -103,7 +133,7 @@ class BermudaLauncherActivity : Activity() {
         content.addView(title)
 
         val subtitle = TextView(this).apply {
-            text = "To play, select your Bermuda Reborn game folder.\nThis only needs to be done once.\nThe folder must contain BERMUDA.SPR, BERMUDA.WGP,\nSCN/-01.SCN, and MIDI/TITLE.MID."
+            text = subtitleText
             textSize = 14f
             setTextColor(0xFFAAAAAA.toInt())
             gravity = Gravity.CENTER
@@ -112,12 +142,12 @@ class BermudaLauncherActivity : Activity() {
         content.addView(subtitle)
 
         importButton = Button(this).apply {
-            text = "Select Game Folder"
+            text = buttonText
             textSize = 18f
             setBackgroundColor(0xFF4A90D9.toInt())
             setTextColor(0xFFFFFFFF.toInt())
             setPadding(48, 16, 48, 16)
-            setOnClickListener { startFolderPicker() }
+            setOnClickListener { onButtonClick() }
         }
         content.addView(importButton)
 
@@ -143,12 +173,13 @@ class BermudaLauncherActivity : Activity() {
         setContentView(root)
     }
 
-    private fun startFolderPicker() {
+    private fun startGameFolderPicker() {
         try {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
                 addFlags(
                     Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
                 )
             }
             startActivityForResult(intent, REQUEST_IMPORT)
@@ -158,28 +189,50 @@ class BermudaLauncherActivity : Activity() {
         }
     }
 
+    private fun startSaveDirectoryPicker() {
+        try {
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                addFlags(
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+                )
+            }
+            startActivityForResult(intent, REQUEST_SAVE_DIR)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start save directory picker: ${e.message}", e)
+            showError("Could not open folder picker: ${e.message}")
+        }
+    }
+
     @Deprecated("Use registerForActivityResult instead")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
 
-        if (requestCode != REQUEST_IMPORT) return
+        if (requestCode != REQUEST_IMPORT && requestCode != REQUEST_SAVE_DIR) return
         if (resultCode != Activity.RESULT_OK || data?.data == null) {
-            Log.i(TAG, "Import cancelled by user")
+            Log.i(TAG, "Folder picker cancelled by user")
             return
         }
 
         val treeUri = data.data!!
 
-        try {
-            contentResolver.takePersistableUriPermission(
-                treeUri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION
-            )
-        } catch (e: SecurityException) {
-            Log.w(TAG, "Could not persist URI permission: ${e.message}")
-        }
+        when (requestCode) {
+            REQUEST_IMPORT -> {
+                try {
+                    contentResolver.takePersistableUriPermission(
+                        treeUri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (e: SecurityException) {
+                    Log.w(TAG, "Could not persist URI permission: ${e.message}")
+                }
 
-        performImport(treeUri)
+                performImport(treeUri)
+            }
+            REQUEST_SAVE_DIR -> configureSaveDirectory(treeUri, data.flags)
+        }
     }
 
     private fun performImport(treeUri: Uri) {
@@ -209,10 +262,34 @@ class BermudaLauncherActivity : Activity() {
                 progressBar?.visibility = ProgressBar.GONE
                 if (result.isSuccess) {
                     statusText?.text = "Imported ${result.fileCount} files successfully!"
-                    checkControllerAndStart()
+                    if (SaveDirectoryManager(this).isConfigured()) {
+                        checkControllerAndStart()
+                    } else {
+                        createSaveDirectoryUI()
+                    }
                 } else {
                     importButton?.isEnabled = true
                     showError(result.error ?: "Unknown import error")
+                }
+            }
+        }.start()
+    }
+
+    private fun configureSaveDirectory(treeUri: Uri, grantFlags: Int) {
+        importButton?.isEnabled = false
+        progressBar?.visibility = ProgressBar.VISIBLE
+        statusText?.text = "Configuring savegame folder..."
+
+        Thread {
+            val result = SaveDirectoryManager(this).configure(treeUri, grantFlags)
+            runOnUiThread {
+                progressBar?.visibility = ProgressBar.GONE
+                if (result.isSuccess) {
+                    statusText?.text = "Savegame folder ready."
+                    checkControllerAndStart()
+                } else {
+                    importButton?.isEnabled = true
+                    showError(result.error ?: "Could not configure savegame folder")
                 }
             }
         }.start()
@@ -374,7 +451,7 @@ class BermudaLauncherActivity : Activity() {
         Log.e(TAG, message)
         statusText?.text = message
         AlertDialog.Builder(this)
-            .setTitle("Import Error")
+            .setTitle("Setup Error")
             .setMessage(message)
             .setPositiveButton("OK", null)
             .show()

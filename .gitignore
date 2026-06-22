@@ -23,4 +23,5 @@ Assets/
 
 # Local signing material
 android/*.keystore
+android/**/*.keystore
 android/keystore.properties

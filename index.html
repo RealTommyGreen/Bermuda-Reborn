@@ -409,7 +409,7 @@
     <div class="inner">
         <a href="#top" class="brand">Bermuda Reborn</a>
         <ul class="links">
-            <li><a href="https://github.com/RealTommyGreen/Bermuda-Reborn/releases/download/v1.0.1/BermudaRebornRelease1.0.1.apk">Download</a></li>
+            <li><a href="https://github.com/RealTommyGreen/Bermuda-Reborn/releases/download/v1.0.4/BermudaRebornRelease1.0.4.apk">Download</a></li>
             <li><a href="#install">Install</a></li>
             <li><a href="#changelog">Changelog</a></li>
             <li><a href="#support">Support Me</a></li>
@@ -435,7 +435,7 @@
                 <span class="badge">Widescreen 16:9 Gameplay</span>
             </div>
             <div class="buttons">
-                <a href="https://github.com/RealTommyGreen/Bermuda-Reborn/releases/download/v1.0.1/BermudaRebornRelease1.0.1.apk" class="btn btn-primary">Download APK</a>
+                <a href="https://github.com/RealTommyGreen/Bermuda-Reborn/releases/download/v1.0.4/BermudaRebornRelease1.0.4.apk" class="btn btn-primary">Download APK</a>
                 <a href="https://github.com/RealTommyGreen/Bermuda-Reborn" class="btn btn-secondary">Go to GitHub</a>
             </div>
         </div>
@@ -508,10 +508,10 @@
             <div class="step">
                 <div class="num">2</div>
                 <div>
-                    <h4>Launch Bermuda Reborn and pick the folder</h4>
-                    <p>On first launch, the app opens a folder picker. Select the folder
-                    containing your game data. The app validates the required files
-                    and imports them.</p>
+                    <h4>Launch Bermuda Reborn and pick the folders</h4>
+                    <p>On first launch, the app opens folder pickers. Select the folder
+                    containing your game data, then choose a savegame folder for backups.
+                    The app validates the required files and imports them.</p>
                 </div>
             </div>
             <div class="step">
@@ -541,7 +541,37 @@
     <div class="inner">
         <h2>Update Changelog</h2>
         <span class="section-accent"></span>
-        <p class="lead">Bermuda Reborn v1.0.1 — the first public release with the full feature set: native SDL2 engine, context-sensitive touch overlay, game controller support, and custom savegame system.</p>
+        <p class="lead">Bermuda Reborn v1.0.4 adds selectable savegame storage, easy save backups, crashlog export, and the latest touch-control fixes.</p>
+
+        <div class="release-card" style="margin-bottom: 1.5rem;">
+            <div class="release-header">
+                <span class="version">Version 1.0.4</span>
+                <a href="https://github.com/RealTommyGreen/Bermuda-Reborn/releases/tag/v1.0.4" target="_blank" rel="noopener">View release on GitHub</a>
+            </div>
+            <div class="change-group">
+                <h4>Important Install Note</h4>
+                <ul>
+                    <li>Please uninstall any previous Bermuda Reborn version before installing this APK. Version 1.0.4 makes major changes to the savegame system and a clean install prevents conflicts with old internal savegame paths.</li>
+                </ul>
+            </div>
+            <div class="change-group">
+                <h4>New Savegame System</h4>
+                <ul>
+                    <li>First launch now asks for both the game data folder and a dedicated savegame folder.</li>
+                    <li>Savegames are loaded from the selected folder and synchronized back to it.</li>
+                    <li>You can now easily find, copy, and back up your savegames from the folder you chose.</li>
+                    <li>Java/Kotlin and native crash logs are exported as TXT files into the savegame folder.</li>
+                </ul>
+            </div>
+            <div class="change-group">
+                <h4>Included 1.0.3 Fixes</h4>
+                <ul>
+                    <li>Fixed the touch overlay getting stuck in weapon mode after death and savegame loading.</li>
+                    <li>Fixed aiming direction being reset after firing with a drawn weapon.</li>
+                    <li>Restored standing forward jump via double tap on the Jump button, with D-Pad Up double-tap support included.</li>
+                </ul>
+            </div>
+        </div>
 
         <div class="release-card">
             <div class="release-header">
